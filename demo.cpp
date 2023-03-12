@@ -2,9 +2,15 @@
 #include <iostream>
 #include <vector>
 #include <cassert>
-#include <math.h>
+#include <cmath>
 #include <map>
 #include <algorithm>
+#include <cstring>
+#include <list>
+#include <cstdio>
+#include <windows.h>
+#include <string>
+
 using namespace std;
 
 struct type_worktable_struct//每种类型的工作台需要原材料raw_material，需要周期period，生产出了produce
