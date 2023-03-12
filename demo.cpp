@@ -6,7 +6,7 @@
 #include <map>
 using namespace std;
 
-struct type_worktable_struct
+struct type_worktable_struct//每种类型的工作台需要原材料raw_material，需要周期period，生产出了produce
 {
     int raw_material;
     int period;
@@ -63,7 +63,7 @@ void init_material_to_bench(int type, int id)
     {
         if ((1 << i) & tp_worktable[type].raw_material)
         {
-            waiting_material[i].push_back(id);
+            waiting_material[i].push_back(id);//这个工作台正在等待这种原材料
         }
     }
 }
@@ -92,7 +92,7 @@ void read_frame_info(int& money) {
     assert(ok == "OK"); // 最后一行必须是OK
 }
 
-void init()
+void init()//初始化每种类型的工作台的信息
 {
     tp_worktable[1].period = 50;
     tp_worktable[1].raw_material =0;
@@ -131,6 +131,7 @@ void init()
     tp_worktable[9].produce = 0;
 }
 
+//载入地图
 void readmap() {
     for (int i = 1;i <= 100;i++)
     {
@@ -146,18 +147,18 @@ void readmap() {
     assert(ok == "OK"); // 最后一行必须是OK
 }
 
-double distance(Point p1, Point p2)
+double distance(Point p1, Point p2)//计算两个点之间的坐标
 {
     return sqrt((p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y));
 }
 
-int best_fit(double &min_dis,int robotid)
+int best_fit(double &min_dis,int robotid)//寻找当前最适合机器人前往的工作台
 {
     int min_id = 0;
     min_dis = 0x3ffff;
     if (robots[robotid].carrying_type == 0)
     {
-        for (vector<int>::iterator itbegin = full.begin();itbegin != full.end();itbegin++)
+        for (vector<int>::iterator itbegin = full.begin();itbegin != full.end();itbegin++)//遍历所有东西的
         {
             int dis = distance(robots[robotid].pos, workbenches[*itbegin].pos);
             if (min_dis > dis)
@@ -167,7 +168,7 @@ int best_fit(double &min_dis,int robotid)
             }
         }
     }
-    else
+    else//遍历自己要找到的
     {
         for (vector<int>::iterator itbegin = waiting_material[robots[robotid].carrying_type].begin();itbegin != waiting_material[robots[robotid].carrying_type].end();itbegin++)
         {
@@ -182,7 +183,7 @@ int best_fit(double &min_dis,int robotid)
     return min_id;
 }
 
-double cal_angle(int table_id, int robot_id)
+double cal_angle(int table_id, int robot_id)//计算机器人前往工作台需要转多少度
 {
     double sita = atan((robots[robot_id].pos.y - workbenches[table_id].pos.y) / (robots[robot_id].pos.x - workbenches[table_id].pos.x));
     return fabs(robots[robot_id].facing_direction-sita);
@@ -202,10 +203,11 @@ int main() {
         double distance;
         for(int robotId = 0; robotId < 4; robotId++){
             int table_id=best_fit(distance,robotId);
-            lineSpeed = distance / (1.0 / 50);
-            angleSpeed = cal_angle(table_id, robotId)/(1.0/50);
-            printf("forward %d %d\n", robotId, lineSpeed);
+            lineSpeed = distance / (1.0 / 50);//一帧走过去
+            angleSpeed = cal_angle(table_id, robotId)/(1.0/50);//一帧转完
             printf("rotate %d %f\n", robotId, angleSpeed);
+            printf("forward %d %d\n", robotId, lineSpeed);
+
         }
         printf("OK\n");
         fflush(stdout);
