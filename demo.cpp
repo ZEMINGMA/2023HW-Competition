@@ -159,7 +159,7 @@ void readmap() {
     assert(ok == "OK"); // 最后一行必须是OK
 }
 
-double distance(Point p1, Point p2)//计算两个点之间的坐标
+double my_distance(Point p1, Point p2)//计算两个点之间的坐标
 {
     return sqrt((p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y));
 }
@@ -172,7 +172,7 @@ int best_fit(double &min_dis,int robotid)//寻找当前最适合机器人前往�
     {
         for (vector<int>::iterator itbegin = full.begin();itbegin != full.end();itbegin++)//遍历所有东西的
         {
-            int dis = distance(robots[robotid].pos, workbenches[*itbegin].pos);
+            int dis = my_distance(robots[robotid].pos, workbenches[*itbegin].pos);
             if (min_dis > dis)
             {
                 min_dis = dis;
@@ -185,7 +185,7 @@ int best_fit(double &min_dis,int robotid)//寻找当前最适合机器人前往�
     {
         for (vector<int>::iterator itbegin = waiting_material[robots[robotid].carrying_type].begin();itbegin != waiting_material[robots[robotid].carrying_type].end();itbegin++)
         {
-            int dis = distance(robots[robotid].pos, workbenches[*itbegin].pos);
+            int dis = my_distance(robots[robotid].pos, workbenches[*itbegin].pos);
             if (min_dis > dis)
             {
                 min_dis = dis;
@@ -253,11 +253,11 @@ int main() {
         update_workbench();
         int lineSpeed = 3;
         double angleSpeed = 1.5;
-        double distance;
+        double my_distance;
         for(int robotId = 0; robotId < 4; robotId++){
             buy = 0,sell = 0;//清空上一轮的购买标记
-            int table_id=best_fit(distance,robotId);
-            lineSpeed = distance / (1.0 / 50);//一帧走过去
+            int table_id=best_fit(my_distance,robotId);
+            lineSpeed = my_distance / (1.0 / 50);//一帧走过去
             int flag = 1;
             if (lineSpeed > 6.0)
             {
