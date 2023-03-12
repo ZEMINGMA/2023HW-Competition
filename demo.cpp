@@ -218,7 +218,7 @@ void update_workbench()
                 if (find(full.begin(), full.end(), i) == full.end())
                 {
                     full.push_back(i);
-                    workbenches[i].product_bit == 1;
+                    workbenches[i].product_bit = 1;
                 }
             }
         }
