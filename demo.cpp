@@ -4,6 +4,7 @@
 #include <cassert>
 #include <math.h>
 #include <map>
+#include <algorithm>
 using namespace std;
 
 struct type_worktable_struct//每种类型的工作台需要原材料raw_material，需要周期period，生产出了produce
@@ -78,6 +79,10 @@ void read_frame_info(int& money) {
         init_material_to_bench(workbench.type, i);
         workbench.pos = read_point();
         cin >> workbench.remaining_time >> workbench.raw_bits >> workbench.product_bit;
+        if (workbench.product_bit == 1 && find(full.begin(),full.end(),i)==full.end())
+        {
+            full.push_back(i);
+        }
     }
     for (int i = 0; i < 4; i++) {
         Robot& robot = robots[i];
@@ -192,6 +197,43 @@ double cal_angle(int table_id, int robot_id)//计算机器人前往工作台需�
     return sita-robots[robot_id].facing_direction;
 }
 
+void update_workbench()
+{
+    for (int i = 0;i < workbench_cnt;i++)
+    {
+        if (workbenches[i].raw_bits == tp_worktable[workbenches[i].type].raw_material && workbenches[i].remaining_time< tp_worktable[workbenches[i].type].period)
+        {
+            workbenches[i].remaining_time++;
+        }
+        else
+        {
+            if (workbenches[i].remaining_time == tp_worktable[workbenches[i].type].period)
+            {
+                if (find(full.begin(), full.end(), i) == full.end())
+                {
+                    full.push_back(i);
+                    workbenches[i].product_bit == 1;
+                }
+            }
+        }
+    }
+}
+
+void update_robot(int robotId, int table_id)
+{
+    if (buy)
+    {
+        robots[robotId].carrying_type = tp_worktable[workbenches[table_id].type].produce;
+        workbenches[table_id].product_bit = 0;
+        workbenches[table_id].remaining_time = 0;
+    }
+    if (sell)
+    {
+        workbenches[table_id].raw_bits &= 1 << robots[robotId].carrying_type;
+        robots[robotId].carrying_type = 0;
+    }
+}
+
 int main() {
     init();
     readmap();
@@ -202,6 +244,7 @@ int main() {
         read_frame_info(money);
         printf("%d\n", frameID);
         fflush(stdout);
+        update_workbench();
         int lineSpeed = 3;
         double angleSpeed = 1.5;
         double distance;
@@ -222,12 +265,14 @@ int main() {
             fflush(stdout);
             if (flag&&buy)
             {
-                printf("buy %d\n", table_id);
+                update_robot(robotId,table_id);
+                printf("buy %d\n", robotId);
                 fflush(stdout);
             }
             if (flag && sell)
             {
-                printf("sell %d\n", table_id);
+                update_robot(robotId, table_id);
+                printf("sell %d\n", robotId);
                 fflush(stdout);
             }
         }
