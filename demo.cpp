@@ -2,8 +2,8 @@
 #include <iostream>
 #include <vector>
 #include <cassert>
-#include <map>
 #include <math.h>
+#include <map>
 using namespace std;
 
 struct type_worktable_struct
@@ -53,8 +53,8 @@ int workbench_cnt; // 场上工作台的数量
 type_worktable_struct tp_worktable[10];
 Workbench workbenches[55];//为了通过工作台ID访问工作台
 Robot robots[4];//为了通过机器人ID访问机器人
-vector<int> full[8];//第i号材料可以在id为多少的工作台找到
-vector<int> need[8];//第i号材料被第几个id的工作台需要
+vector<int> full;//哪些工作台有产品等待取走
+vector<int> waiting_material[8];//第i号材料被第几个id的工作台需要
 
 //初始化某种材料可以在哪个工作台找到
 void init_material_to_bench(int type, int id)
@@ -63,7 +63,7 @@ void init_material_to_bench(int type, int id)
     {
         if ((1 << i) & tp_worktable[type].raw_material)
         {
-            need[i].push_back(id);
+            waiting_material[i].push_back(id);
         }
     }
 }
@@ -118,17 +118,17 @@ void init()
     tp_worktable[6].raw_material = (1 << 2) & (1 << 3);
     tp_worktable[6].produce = 6;
 
-    tp_worktable[7].period = 500;
-    tp_worktable[7].raw_material = (1 << 4) & (1 << 2);
+    tp_worktable[7].period = 1000;
+    tp_worktable[7].raw_material = (1 << 4) & (1 << 5)&(1<<6);
     tp_worktable[7].produce = 7;
 
-    tp_worktable[8].period = 500;
-    tp_worktable[8].raw_material = (1 << 1) & (1 << 2);
+    tp_worktable[8].period = 1;
+    tp_worktable[8].raw_material = (1 << 7);
     tp_worktable[8].produce = 0;
 
-    tp_worktable[4].period = 500;
-    tp_worktable[4].raw_material = (1 << 1) & (1 << 2);
-    tp_worktable[4].produce = 0;
+    tp_worktable[9].period = 1;
+    tp_worktable[9].raw_material = (1 << 1) & (1 << 2)& (1 << 3) & (1 << 4)& (1 << 5) & (1 << 6) & (1 << 7) ;
+    tp_worktable[9].produce = 0;
 }
 
 void readmap() {
@@ -155,16 +155,37 @@ int best_fit(double &min_dis,int robotid)
 {
     int min_id = 0;
     min_dis = 0x3ffff;
-    for (int i = 0;i < workbench_cnt;i++)
+    if (robots[robotid].carrying_type == 0)
     {
-        int dis = distance(robots[robotid].pos, workbenches[i].pos);
-        if (min_dis > dis)
+        for (vector<int>::iterator itbegin = full.begin();itbegin != full.end();itbegin++)
         {
-            min_dis = dis;
-            min_id = i;
+            int dis = distance(robots[robotid].pos, workbenches[*itbegin].pos);
+            if (min_dis > dis)
+            {
+                min_dis = dis;
+                min_id = *itbegin;
+            }
+        }
+    }
+    else
+    {
+        for (vector<int>::iterator itbegin = waiting_material[robots[robotid].carrying_type].begin();itbegin != waiting_material[robots[robotid].carrying_type].end();itbegin++)
+        {
+            int dis = distance(robots[robotid].pos, workbenches[*itbegin].pos);
+            if (min_dis > dis)
+            {
+                min_dis = dis;
+                min_id = *itbegin;
+            }
         }
     }
     return min_id;
+}
+
+double cal_angle(int table_id, int robot_id)
+{
+    double sita = atan((robots[robot_id].pos.y - workbenches[table_id].pos.y) / (robots[robot_id].pos.x - workbenches[table_id].pos.x));
+    return fabs(robots[robot_id].facing_direction-sita);
 }
 
 int main() {
@@ -181,6 +202,10 @@ int main() {
         double distance;
         for(int robotId = 0; robotId < 4; robotId++){
             int table_id=best_fit(distance,robotId);
+            lineSpeed = distance / (1.0 / 50);
+            angleSpeed = cal_angle(table_id, robotId)/(1.0/50);
+            printf("forward %d %d\n", robotId, lineSpeed);
+            printf("rotate %d %f\n", robotId, angleSpeed);
         }
         printf("OK\n");
         fflush(stdout);
