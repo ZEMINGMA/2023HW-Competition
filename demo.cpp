@@ -55,6 +55,7 @@ Workbench workbenches[55];//为了通过工作台ID访问工作台
 Robot robots[4];//为了通过机器人ID访问机器人
 vector<int> full;//哪些工作台有产品等待取走
 vector<int> waiting_material[8];//第i号材料被第几个id的工作台需要
+int buy, sell;//是否进行购买
 
 //初始化某种材料可以在哪个工作台找到
 void init_material_to_bench(int type, int id)
@@ -167,6 +168,7 @@ int best_fit(double &min_dis,int robotid)//寻找当前最适合机器人前往�
                 min_id = *itbegin;
             }
         }
+        buy = 1;//这个机器人要买东西了
     }
     else//遍历自己要找到的
     {
@@ -179,6 +181,7 @@ int best_fit(double &min_dis,int robotid)//寻找当前最适合机器人前往�
                 min_id = *itbegin;
             }
         }
+        sell = 1;//这个机器人要卖东西了
     }
     return min_id;
 }
@@ -186,7 +189,7 @@ int best_fit(double &min_dis,int robotid)//寻找当前最适合机器人前往�
 double cal_angle(int table_id, int robot_id)//计算机器人前往工作台需要转多少度
 {
     double sita = atan((robots[robot_id].pos.y - workbenches[table_id].pos.y) / (robots[robot_id].pos.x - workbenches[table_id].pos.x));
-    return fabs(robots[robot_id].facing_direction-sita);
+    return sita-robots[robot_id].facing_direction;
 }
 
 int main() {
@@ -198,16 +201,35 @@ int main() {
     while (scanf("%d", &frameID) != EOF) {
         read_frame_info(money);
         printf("%d\n", frameID);
+        fflush(stdout);
         int lineSpeed = 3;
         double angleSpeed = 1.5;
         double distance;
         for(int robotId = 0; robotId < 4; robotId++){
+            buy = 0,sell = 0;//清空上一轮的购买标记
             int table_id=best_fit(distance,robotId);
             lineSpeed = distance / (1.0 / 50);//一帧走过去
+            int flag = 1;
+            if (lineSpeed > 6.0)
+            {
+                flag = 0;
+                lineSpeed = 6.0;
+            }
             angleSpeed = cal_angle(table_id, robotId)/(1.0/50);//一帧转完
             printf("rotate %d %f\n", robotId, angleSpeed);
+            fflush(stdout);
             printf("forward %d %d\n", robotId, lineSpeed);
-
+            fflush(stdout);
+            if (flag&&buy)
+            {
+                printf("buy %d\n", table_id);
+                fflush(stdout);
+            }
+            if (flag && sell)
+            {
+                printf("sell %d\n", table_id);
+                fflush(stdout);
+            }
         }
         printf("OK\n");
         fflush(stdout);
