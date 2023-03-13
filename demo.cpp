@@ -241,44 +241,51 @@ int main() {
     int frameID, money;
     vector<Workbench> workbenches;
     vector<Robot> robots;
-    while (scanf("%d", &frameID) != EOF) {
-        read_frame_info(money);
-        printf("%d\n", frameID);
-        fflush(stdout);
-        //update_workbench();
-        double lineSpeed = 3;
-        double angleSpeed = 1.5;
-        double my_distance;
-        for (int robotId = 0; robotId < 4; robotId++) {
-            buy = 0, sell = 0;//清空上一轮的购买标记
-            int table_id = best_fit(my_distance, robotId);
-            lineSpeed = my_distance / (1.0 / 50);//一帧走过去
-            int flag = 1;
-            if (lineSpeed > 6.0)
-            {
-                flag = 0;
-                lineSpeed = 6.0;
-            }
-            angleSpeed = cal_angle(table_id, robotId) / (1.0 / 50);//一帧转完
-            printf("rotate %d %f\n", robotId, angleSpeed);
-            fflush(stdout);
-            printf("forward %d %f\n", robotId, lineSpeed);
-            fflush(stdout);
-            if (flag && buy)
-            {
-                update_robot(robotId, table_id);
-                printf("buy %d\n", robotId);
-                fflush(stdout);
-            }
-            if (flag && sell)
-            {
-                update_robot(robotId, table_id);
-                printf("sell %d\n", robotId);
-                fflush(stdout);
-            }
+   while (scanf("%d", &frameID) != EOF) {
+    read_frame_info(money);
+    printf("%d\n", frameID);
+    fflush(stdout);
+    //update_workbench();
+    double lineSpeed = 3;
+    double angleSpeed = 1.5;
+    double my_distance;
+    for (int robotId = 0; robotId < 4; robotId++) {
+        buy = 0, sell = 0;//清空上一轮的购买标记
+        int table_id = best_fit(my_distance, robotId);
+        double move_distance = my_distance / (1.0 / 50);
+        double rotate_angle = cal_angle(table_id, robotId);
+        if (move_distance > 6.0) {
+            move_distance = 6.0;
         }
-        printf("OK\n");
+        if (move_distance < -2.0) {
+            move_distance = -2.0;
+        }
+        if (rotate_angle > M_PI) {
+            rotate_angle = M_PI;
+        }
+        if (rotate_angle < -M_PI) {
+            rotate_angle = -M_PI;
+        }
+        lineSpeed = move_distance / (1.0 / 50);//一帧走过去
+        angleSpeed = rotate_angle / (1.0 / 50);//一帧转完
+        printf("rotate %d %f\n", robotId, angleSpeed);
         fflush(stdout);
+        printf("forward %d %f\n", robotId, lineSpeed);
+        fflush(stdout);
+        if (lineSpeed > 0 && buy) {
+            update_robot(robotId, table_id);
+            printf("buy %d\n", robotId);
+            fflush(stdout);
+        }
+        if (lineSpeed > 0 && sell) {
+            update_robot(robotId, table_id);
+            printf("sell %d\n", robotId);
+            fflush(stdout);
+        }
     }
+    printf("OK\n");
+    fflush(stdout);
+}
+
     return 0;
 }
