@@ -149,9 +149,9 @@ void init()//初始化每种类型的工作台的信息
 
 //载入地图
 void readmap() {
-    for (int i = 1;i <= 100;i++)
+    for (int i = 1;i <= 100;++i)
     {
-        for (int j = 1;j <= 100;j++)
+        for (int j = 1;j <= 100;++j)
         {
             cin >> mp[i][j];
         }
