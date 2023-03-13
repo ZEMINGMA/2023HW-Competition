@@ -172,11 +172,11 @@ int best_fit(double& min_dis, int robotid)//寻找当前最适合机器人前往
 {
     int min_id = 0;
     min_dis = 0x3ffff;
-    if (robots[robotid].carrying_type == 0)
+    if (robots[robotid].carrying_type == 0)// 如果机器人没有携带任何物品
     {
-        for (map<int,int>::iterator itbegin = full.begin();itbegin != full.end();itbegin++)//遍历所有东西的
+        for (map<int,int>::iterator itbegin = full.begin();itbegin != full.end();itbegin++) // 遍历所有的工作台
         {
-            if (itbegin->second == 0)
+            if (itbegin->second == 0)// 如果该工作台已经有产品被取走，则跳过 
             {
                 continue;
             }
@@ -189,7 +189,7 @@ int best_fit(double& min_dis, int robotid)//寻找当前最适合机器人前往
         }
         buy = 1;//这个机器人要买东西了
     }
-    else//遍历自己要找到的
+    else//如果机器人携带了物品,遍历自己要找到的
     {
         for (map<int,int>::iterator itbegin = waiting_material[robots[robotid].carrying_type].begin();itbegin != waiting_material[robots[robotid].carrying_type].end();itbegin++)
         {
