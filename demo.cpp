@@ -60,19 +60,26 @@ int workbench_cnt; // 场上工作台的数量
 type_worktable_struct tp_worktable[10];
 Workbench workbenches[55];//为了通过工作台ID访问工作台
 Robot robots[4];//为了通过机器人ID访问机器人
-vector<int> full;//哪些工作台有产品等待取走
-vector<int> waiting_material[8];//第i号材料被第几个id的工作台需要
+map<int,int> full;//哪些工作台有产品等待取走
+map<int,int> waiting_material[8];//第i号材料被第几个id的工作台需要
 int buy, sell;//是否进行购买
 
-//初始化某种材料可以在哪个工作台找到
+//初始化工作在等待的材料
 void init_material_to_bench(int type, int id)
 {
-    for (int i = 1;i <=7;i++)
+    if (workbenches[id].product_bit == 0)
     {
-        if ((1 << i) & tp_worktable[type].raw_material)
+        for (int i = 1;i <= 7;i++)
         {
-            waiting_material[i].push_back(id);//这个工作台正在等待这种原材料
+            if ((1 << i) & tp_worktable[type].raw_material && ((1 << i) & workbenches[i].raw_bits) == 0 )
+            {
+                waiting_material[i][id] = 1;//这个工作台正在等待这种原材料
+            }
         }
+    }
+    else
+    {
+        full[id] = 1;
     }
 }
 
@@ -82,13 +89,9 @@ void read_frame_info(int& money) {
     for (int i = 0; i < workbench_cnt; i++) {
         Workbench& workbench = workbenches[i];
         cin >> workbench.type;
-        init_material_to_bench(workbench.type, i);
         workbench.pos = read_point();
         cin >> workbench.remaining_time >> workbench.raw_bits >> workbench.product_bit;
-        if (workbench.product_bit == 1 && find(full.begin(),full.end(),i)==full.end())
-        {
-            full.push_back(i);
-        }
+        init_material_to_bench(workbench.type, i);
     }
     for (int i = 0; i < 4; i++) {
         Robot& robot = robots[i];
@@ -107,11 +110,11 @@ void read_frame_info(int& money) {
 void init()//初始化每种类型的工作台的信息
 {
     tp_worktable[1].period = 50;
-    tp_worktable[1].raw_material =0;
+    tp_worktable[1].raw_material = 0;
     tp_worktable[1].produce = 1;
 
     tp_worktable[2].period = 50;
-    tp_worktable[2].raw_material =0;
+    tp_worktable[2].raw_material = 0;
     tp_worktable[2].produce = 2;
 
     tp_worktable[3].period = 50;
@@ -119,7 +122,7 @@ void init()//初始化每种类型的工作台的信息
     tp_worktable[3].produce = 3;
 
     tp_worktable[4].period = 500;
-    tp_worktable[4].raw_material = (1<<1)&(1<<2);
+    tp_worktable[4].raw_material = (1 << 1) & (1 << 2);
     tp_worktable[4].produce = 4;
 
     tp_worktable[5].period = 500;
@@ -131,7 +134,7 @@ void init()//初始化每种类型的工作台的信息
     tp_worktable[6].produce = 6;
 
     tp_worktable[7].period = 1000;
-    tp_worktable[7].raw_material = (1 << 4) & (1 << 5)&(1<<6);
+    tp_worktable[7].raw_material = (1 << 4) & (1 << 5) & (1 << 6);
     tp_worktable[7].produce = 7;
 
     tp_worktable[8].period = 1;
@@ -139,8 +142,9 @@ void init()//初始化每种类型的工作台的信息
     tp_worktable[8].produce = 0;
 
     tp_worktable[9].period = 1;
-    tp_worktable[9].raw_material = (1 << 1) & (1 << 2)& (1 << 3) & (1 << 4)& (1 << 5) & (1 << 6) & (1 << 7) ;
+    tp_worktable[9].raw_material = (1 << 1) & (1 << 2) & (1 << 3) & (1 << 4) & (1 << 5) & (1 << 6) & (1 << 7);
     tp_worktable[9].produce = 0;
+
 }
 
 //载入地图
@@ -164,32 +168,40 @@ double my_distance(Point p1, Point p2)//计算两个点之间的坐标
     return sqrt((p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y));
 }
 
-int best_fit(double &min_dis,int robotid)//寻找当前最适合机器人前往的工作台
+int best_fit(double& min_dis, int robotid)//寻找当前最适合机器人前往的工作台
 {
     int min_id = 0;
     min_dis = 0x3ffff;
     if (robots[robotid].carrying_type == 0)
     {
-        for (vector<int>::iterator itbegin = full.begin();itbegin != full.end();itbegin++)//遍历所有东西的
+        for (map<int,int>::iterator itbegin = full.begin();itbegin != full.end();itbegin++)//遍历所有东西的
         {
-            int dis = my_distance(robots[robotid].pos, workbenches[*itbegin].pos);
+            if (itbegin->second == 0)
+            {
+                continue;
+            }
+            double dis = my_distance(robots[robotid].pos, workbenches[itbegin->first].pos);
             if (min_dis > dis)
             {
                 min_dis = dis;
-                min_id = *itbegin;
+                min_id = itbegin->first;
             }
         }
         buy = 1;//这个机器人要买东西了
     }
     else//遍历自己要找到的
     {
-        for (vector<int>::iterator itbegin = waiting_material[robots[robotid].carrying_type].begin();itbegin != waiting_material[robots[robotid].carrying_type].end();itbegin++)
+        for (map<int,int>::iterator itbegin = waiting_material[robots[robotid].carrying_type].begin();itbegin != waiting_material[robots[robotid].carrying_type].end();itbegin++)
         {
-            int dis = my_distance(robots[robotid].pos, workbenches[*itbegin].pos);
+            if (itbegin->second==0)
+            {
+                continue;
+            }
+            double dis = my_distance(robots[robotid].pos, workbenches[itbegin->first].pos);
             if (min_dis > dis)
             {
                 min_dis = dis;
-                min_id = *itbegin;
+                min_id = itbegin->first;
             }
         }
         sell = 1;//这个机器人要卖东西了
@@ -199,30 +211,8 @@ int best_fit(double &min_dis,int robotid)//寻找当前最适合机器人前往�
 
 double cal_angle(int table_id, int robot_id)//计算机器人前往工作台需要转多少度
 {
-    double sita = atan((robots[robot_id].pos.y - workbenches[table_id].pos.y) / (robots[robot_id].pos.x - workbenches[table_id].pos.x));
-    return sita-robots[robot_id].facing_direction;
-}
-
-void update_workbench()
-{
-    for (int i = 0;i < workbench_cnt;i++)
-    {
-        if (workbenches[i].raw_bits == tp_worktable[workbenches[i].type].raw_material && workbenches[i].remaining_time< tp_worktable[workbenches[i].type].period)
-        {
-            workbenches[i].remaining_time++;
-        }
-        else
-        {
-            if (workbenches[i].remaining_time == tp_worktable[workbenches[i].type].period)
-            {
-                if (find(full.begin(), full.end(), i) == full.end())
-                {
-                    full.push_back(i);
-                    workbenches[i].product_bit = 1;
-                }
-            }
-        }
-    }
+    double sita = atan2(robots[robot_id].pos.y - workbenches[table_id].pos.y, robots[robot_id].pos.x - workbenches[table_id].pos.x);
+    return sita - robots[robot_id].facing_direction;
 }
 
 void update_robot(int robotId, int table_id)
@@ -232,31 +222,33 @@ void update_robot(int robotId, int table_id)
         robots[robotId].carrying_type = tp_worktable[workbenches[table_id].type].produce;
         workbenches[table_id].product_bit = 0;
         workbenches[table_id].remaining_time = 0;
+        full[table_id] = 0;
     }
     if (sell)
     {
         workbenches[table_id].raw_bits &= 1 << robots[robotId].carrying_type;
         robots[robotId].carrying_type = 0;
+        waiting_material[robots[robotId].carrying_type][table_id] = 0;
     }
 }
 
 int main() {
     init();
     readmap();
-    int frameID,money;
+    int frameID, money;
     vector<Workbench> workbenches;
     vector<Robot> robots;
     while (scanf("%d", &frameID) != EOF) {
         read_frame_info(money);
         printf("%d\n", frameID);
         fflush(stdout);
-        update_workbench();
-        int lineSpeed = 3;
+        //update_workbench();
+        double lineSpeed = 3;
         double angleSpeed = 1.5;
         double my_distance;
-        for(int robotId = 0; robotId < 4; robotId++){
-            buy = 0,sell = 0;//清空上一轮的购买标记
-            int table_id=best_fit(my_distance,robotId);
+        for (int robotId = 0; robotId < 4; robotId++) {
+            buy = 0, sell = 0;//清空上一轮的购买标记
+            int table_id = best_fit(my_distance, robotId);
             lineSpeed = my_distance / (1.0 / 50);//一帧走过去
             int flag = 1;
             if (lineSpeed > 6.0)
@@ -264,14 +256,14 @@ int main() {
                 flag = 0;
                 lineSpeed = 6.0;
             }
-            angleSpeed = cal_angle(table_id, robotId)/(1.0/50);//一帧转完
+            angleSpeed = cal_angle(table_id, robotId) / (1.0 / 50);//一帧转完
             printf("rotate %d %f\n", robotId, angleSpeed);
             fflush(stdout);
-            printf("forward %d %d\n", robotId, lineSpeed);
+            printf("forward %d %f\n", robotId, lineSpeed);
             fflush(stdout);
-            if (flag&&buy)
+            if (flag && buy)
             {
-                update_robot(robotId,table_id);
+                update_robot(robotId, table_id);
                 printf("buy %d\n", robotId);
                 fflush(stdout);
             }
