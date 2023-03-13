@@ -172,42 +172,45 @@ int best_fit(double& min_dis, int robotid)//寻找当前最适合机器人前往
 {
     int min_id = 0;
     min_dis = 0x3ffff;
-    if (robots[robotid].carrying_type == 0)// 如果机器人没有携带任何物品
+    if (robots[robotid].carrying_type == 0)//机器人没有携带物品
     {
-        for (map<int,int>::iterator itbegin = full.begin();itbegin != full.end();itbegin++) // 遍历所有的工作台
-        {
-            if (itbegin->second == 0)// 如果该工作台已经有产品被取走，则跳过 
+        for (map<int,int>::iterator itbegin = full.begin();itbegin != full.end();itbegin++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+            {
+            if (itbegin->second == 0)    //没有成品的工作台
             {
                 continue;
             }
             double dis = my_distance(robots[robotid].pos, workbenches[itbegin->first].pos);
-            if (min_dis > dis)
+            if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
             {
-                min_dis = dis;
-                min_id = itbegin->first;
+                min_dis = dis;                //距离
+                min_id = itbegin->first;      //工作台编号
             }
-        }
+            }
         buy = 1;//这个机器人要买东西了
+        //full[min_id] = 0;  //这里是我单独加的，在想要不要在这里就改变，就可以避免都去找同一个有成品工作台
     }
-    else//如果机器人携带了物品,遍历自己要找到的
-    {
+    else//机器人携带物品
+    {   //遍历需要机器人所携带材料的工作台(只要曾经需要过机器人携带的材料，就会在这里面)
         for (map<int,int>::iterator itbegin = waiting_material[robots[robotid].carrying_type].begin();itbegin != waiting_material[robots[robotid].carrying_type].end();itbegin++)
         {
-            if (itbegin->second==0)
+            if (itbegin->second==0)//工作台不需要该材料
             {
                 continue;
             }
             double dis = my_distance(robots[robotid].pos, workbenches[itbegin->first].pos);
-            if (min_dis > dis)
+            if (min_dis > dis)  //寻找需要改材料的工作台中最近的
             {
-                min_dis = dis;
-                min_id = itbegin->first;
+                min_dis = dis;                    //距离
+                min_id = itbegin->first;          //工作台编号
             }
         }
+        //waiting_material[robots[robotid].carrying_type][min_id] = 0; //同上，希望避免去找同一个工作台交付原材料
         sell = 1;//这个机器人要卖东西了
     }
     return min_id;
 }
+
 
 double cal_angle(int table_id, int robot_id){
     double dx = workbenches[table_id].pos.x - robots[robot_id].pos.x;
