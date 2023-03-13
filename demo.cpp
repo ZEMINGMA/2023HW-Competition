@@ -209,10 +209,13 @@ int best_fit(double& min_dis, int robotid)//寻找当前最适合机器人前往
     return min_id;
 }
 
-double cal_angle(int table_id, int robot_id)//计算机器人前往工作台需要转多少度
-{
-    double sita = atan2(robots[robot_id].pos.y - workbenches[table_id].pos.y, robots[robot_id].pos.x - workbenches[table_id].pos.x);
-    return sita - robots[robot_id].facing_direction;
+double cal_angle(int table_id, int robot_id){
+    double dx = workbenches[table_id].pos.x - robots[robot_id].pos.x;
+    double dy = workbenches[table_id].pos.y - robots[robot_id].pos.y;
+    double angle = atan2(dy, dx) - robots[robot_id].facing_direction;
+    if (angle > pi) angle -= 2 * pi;
+    if (angle < -pi) angle += 2 * pi;
+    return angle;
 }
 
 void update_robot(int robotId, int table_id)
