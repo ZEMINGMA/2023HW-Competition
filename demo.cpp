@@ -13,11 +13,11 @@
 
 using namespace std;
 
-struct type_worktable_struct//每种类型的工作台需要原材料raw_material，需要周期period，生产出了produce
+struct type_worktable_struct
 {
-    int raw_material;
-    int period;
-    int produce;
+    int raw_material;//每种类型的工作台需要原材料raw_material
+    int period;//需要周期period
+    int produce;//生产出了produce
 };
 
 struct Point
