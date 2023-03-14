@@ -85,7 +85,7 @@ void init_material_to_bench(int type, int id)
 
 // 读取一帧的信息
 void read_frame_info(int& money) {
-    cin >> money >> workbench_cnt;
+    cin >> money >> workbench_cnt;             // 场上工作台的数量 K
     for (int i = 0; i < workbench_cnt; i++) {
         Workbench& workbench = workbenches[i];
         cin >> workbench.type;
@@ -170,40 +170,40 @@ double my_distance(Point p1, Point p2)//计算两个点之间的坐标
 
 int best_fit(double& min_dis, int robotid)//寻找当前最适合机器人前往的工作台
 {
-    int min_id = 0;
+    int min_id = 0;//距离最近的工作台
     min_dis = 0x3ffff;
     if (robots[robotid].carrying_type == 0)//机器人没有携带物品
     {
         for (map<int,int>::iterator itbegin = full.begin();itbegin != full.end();itbegin++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
             {
-            if (itbegin->second == 0)    //没有成品的工作台
-            {
-                continue;
-            }
+                    if (itbegin->second == 0)    //没有成品的工作台
+                    {
+                        continue;
+                    }
             double dis = my_distance(robots[robotid].pos, workbenches[itbegin->first].pos);
-            if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
-            {
-                min_dis = dis;                //距离
-                min_id = itbegin->first;      //工作台编号
+                    if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
+                    {
+                        min_dis = dis;                //距离
+                        min_id = itbegin->first;      //工作台编号
+                    }
             }
-            }
-        buy = 1;//这个机器人要买东西了
-        //full[min_id] = 0;  //这里是我单独加的，在想要不要在这里就改变，就可以避免都去找同一个有成品工作台
+            buy = 1;//这个机器人要买东西了
+            //full[min_id] = 0;  //这里是我单独加的，在想要不要在这里就改变，就可以避免都去找同一个有成品工作台
     }
     else//机器人携带物品
     {   //遍历需要机器人所携带材料的工作台(只要曾经需要过机器人携带的材料，就会在这里面)
         for (map<int,int>::iterator itbegin = waiting_material[robots[robotid].carrying_type].begin();itbegin != waiting_material[robots[robotid].carrying_type].end();itbegin++)
         {
-            if (itbegin->second==0)//工作台不需要该材料
-            {
-                continue;
-            }
+                if (itbegin->second==0)//工作台不需要该材料
+                {
+                    continue;
+                }
             double dis = my_distance(robots[robotid].pos, workbenches[itbegin->first].pos);
-            if (min_dis > dis)  //寻找需要改材料的工作台中最近的
-            {
-                min_dis = dis;                    //距离
-                min_id = itbegin->first;          //工作台编号
-            }
+                if (min_dis > dis)  //寻找需要改材料的工作台中最近的
+                {
+                    min_dis = dis;                    //距离
+                    min_id = itbegin->first;          //工作台编号
+                }
         }
         //waiting_material[robots[robotid].carrying_type][min_id] = 0; //同上，希望避免去找同一个工作台交付原材料
         sell = 1;//这个机器人要卖东西了
@@ -241,7 +241,7 @@ void update_robot(int robotId, int table_id)
 int main() {
     init();
     readmap();
-    int frameID, money;
+    int frameID, money;                                             //帧序号 当前金钱数
     vector<Workbench> workbenches;
     vector<Robot> robots;
    while (scanf("%d", &frameID) != EOF) {
