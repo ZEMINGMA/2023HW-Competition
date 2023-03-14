@@ -33,6 +33,7 @@ struct Workbench {
     int remaining_time; // 剩余生产时间（帧数）
     int raw_bits; // 原材料格状态，二进制位表描述，例如 48（110000）表示拥有物品 4 和 5
     int product_bit; // 产品格状态，0 表示无，1 表示有
+    int lock;//当前控制台是否有机器人奔向
 };
 
 // 机器人
@@ -157,6 +158,11 @@ int best_fit(double& min_dis, int robotid)//寻找当前最适合机器人前往
             {
                 continue;
             }
+            //如果有其它机器人奔向，本机器人不去
+            if (workbenches[i].lock == 1)
+            {
+                continue;
+            }
             double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
             if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
             {
@@ -176,7 +182,12 @@ int best_fit(double& min_dis, int robotid)//寻找当前最适合机器人前往
                 continue;
             }
             //如果工作台已经有了这种原材料
-            if ((workbenches[i].raw_bits&(1<<(robots[robotid].carrying_type)))!=0)
+            if ((workbenches[i].raw_bits & (1 << (robots[robotid].carrying_type))) != 0)
+            {
+                continue;
+            }
+            //如果有其它机器人奔向，本机器人不去
+            if (workbenches[i].lock == 1)
             {
                 continue;
             }
@@ -217,6 +228,10 @@ int main() {
         for (int robotId = 0; robotId < 4; robotId++) {
             buy = 0, sell = 0;//清空上一轮的购买标记
             int table_id = best_fit(my_distance, robotId);
+            if (table_id != -1)
+            {
+                workbenches[table_id].lock = 1;//锁
+            }
             double move_distance = my_distance / (1.0 / 50);//线速度
             double rotate_angle = cal_angle(table_id, robotId) / (1.0 / 50);//加速度
             if (move_distance > 6.0) {
@@ -236,12 +251,14 @@ int main() {
             printf("forward %d %f\n", robotId, move_distance);
             fflush(stdout);
             //满足flag条件才能确定能购买
-            if (robots[robotId].workbench_id==table_id&&buy) {
+            if (robots[robotId].workbench_id == table_id && buy) {
                 printf("buy %d\n", robotId);
+                workbenches[table_id].lock =0;//解锁
                 fflush(stdout);
             }
-            else if (robots[robotId].workbench_id ==table_id&&sell) {
+            else if (robots[robotId].workbench_id == table_id && sell) {
                 printf("sell %d\n", robotId);
+                workbenches[table_id].lock = 0;//解锁
                 fflush(stdout);
             }
         }
