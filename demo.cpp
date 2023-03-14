@@ -46,6 +46,9 @@ struct Robot {
     Point linear_speed; // 线速度，由二维向量描述线速度，单位为米/秒，每秒有50帧
     double facing_direction; // 朝向，表示机器人的朝向，范围为 [-π,π]，方向示例：0 表示右方向，π/2 表示上方向，-π/2 表示下方向
     Point pos; // 坐标
+    int buy;//准备购买
+    int sell;//准备出售
+    int table_id;//前往的工作台ID
 };
 
 // 读取一个 Point 类型的变量
@@ -62,7 +65,7 @@ int workbench_cnt; // 场上工作台的数量
 type_worktable_struct tp_worktable[10];
 Workbench workbenches[55];//为了通过工作台ID访问工作台
 Robot robots[4];//为了通过机器人ID访问机器人
-int buy, sell;//是否进行购买
+
 
 // 读取一帧的信息
 void read_frame_info(int& money) {
@@ -148,27 +151,26 @@ double my_distance(Point p1, Point p2)//计算两个点之间的坐标
 
 int best_fit(double& min_dis, int robotid)//寻找当前最适合机器人前往的工作台
 {
-    int min_id = 0;
+    int min_id = -1;
     min_dis = 99999.0;
+
+
     if (robots[robotid].carrying_type == 0)//机器人没有携带物品
     {
-        for (int i = 0;i < workbench_cnt;i++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+        for (int i = 0;i < workbench_cnt;++i)//遍历所有工作台(只要曾经有过成品就会出现在full里)
         {
             if (workbenches[i].product_bit == 0)//如果没有生产出产品
-            {
-                continue;
-            }
-            //如果有其它机器人奔向，本机器人不去
-            if (workbenches[i].lock != robotid + 1 && workbenches[i].lock != 0)
-            {
-                continue;
-            }
+                {continue;}
+           
+            if (workbenches[i].lock != robotid + 1 && workbenches[i].lock != 0) //如果有其它机器人奔向，本机器人不去
+                {continue;}
+
             double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
             if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
             {
                 min_dis = dis;                //距离
                 min_id = i;      //工作台编号
-                buy = 1;//这个机器人要买东西了
+                robots[robotid].buy = 1;//这个机器人要买东西了
             }
         }
     }
@@ -178,25 +180,19 @@ int best_fit(double& min_dis, int robotid)//寻找当前最适合机器人前往
         {
             //如果这种类型的工作台不需要这种类型的材料
             if ((tp_worktable[workbenches[i].type].raw_material & (1 << (robots[robotid].carrying_type))) == 0)
-            {
-                continue;
-            }
+                {continue;}
             //如果工作台已经有了这种原材料
             if ((workbenches[i].raw_bits & (1 << (robots[robotid].carrying_type))) != 0)
-            {
-                continue;
-            }
+                {continue;}
             //如果有其它机器人奔向，本机器人不去
             if (workbenches[i].lock != robotid + 1&& workbenches[i].lock != 0)
-            {
-                continue;
-            }
+                {continue;}
             double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
             if (min_dis > dis)  //寻找需要改材料的工作台中最近的
             {
                 min_dis = dis;                    //距离
                 min_id = i;          //工作台编号
-                sell = 1;//这个机器人要卖东西了
+                robots[robotid].sell = 1;//这个机器人要卖东西了
             }
         }
     }
@@ -225,42 +221,53 @@ int main() {
         double lineSpeed = 3;
         double angleSpeed = 1.5;
         double my_distance;
+
+
         for (int robotId = 0; robotId < 4; robotId++) {
-            buy = 0, sell = 0;//清空上一轮的购买标记
-            int table_id = best_fit(my_distance, robotId);
-            if (table_id != -1)
+
+            if(robots[robotId].sell==0 && robots[robotId].buy==0)
+                robots[robotId].table_id = best_fit(my_distance, robotId);  //只有当机器人需要进行购买或者出售的时候后才去fit
+
+            if (robots[robotId].table_id != -1)
             {
-                workbenches[table_id].lock = robotId+1;//锁
-            }
-            double move_distance = my_distance / (1.0 / 50);//线速度
-            double rotate_angle = cal_angle(table_id, robotId) / (1.0 / 50);//加速度
-            if (move_distance > 6.0) {
-                move_distance = 6.0;
-            }
-            if (move_distance < -2.0) {
-                move_distance = -2.0;
-            }
-            if (rotate_angle > M_PI) {
-                rotate_angle = M_PI;
-            }
-            if (rotate_angle < -1 * M_PI) {
-                rotate_angle = -1 * M_PI;
-            }
-            printf("rotate %d %f\n", robotId, rotate_angle);
-            fflush(stdout);
-            printf("forward %d %f\n", robotId, move_distance);
-            fflush(stdout);
-            //满足flag条件才能确定能购买
-            if (robots[robotId].workbench_id == table_id && buy) {
+                workbenches[robots[robotId].table_id].lock = robotId+1;//锁
+                double move_distance = my_distance / (1.0 / 50);//线速度
+                double rotate_angle = cal_angle(robots[robotId].table_id, robotId) / (1.0 / 50);//加速度
+                if (move_distance > 6.0) {
+                    move_distance = 6.0;
+                }
+                if (move_distance < -2.0) {
+                    move_distance = -2.0;
+                }
+                if (rotate_angle > M_PI) {
+                    rotate_angle = M_PI;
+                }
+                if (rotate_angle < -1 * M_PI) {
+                    rotate_angle = -1 * M_PI;
+                }
+                printf("rotate %d %f\n", robotId, rotate_angle);
+                fflush(stdout);
+                printf("forward %d %f\n", robotId, move_distance);
+                fflush(stdout);
+
+                if (robots[robotId].workbench_id == robots[robotId].table_id && robots[robotId].buy==1) {
                 printf("buy %d\n", robotId);
-                workbenches[table_id].lock =0;//解锁
+                robots[robotId].buy=0;
+                workbenches[robots[robotId].table_id].lock =0;//解锁
                 fflush(stdout);
-            }
-            else if (robots[robotId].workbench_id == table_id && sell) {
+                 }
+                else if (robots[robotId].workbench_id == robots[robotId].table_id && robots[robotId].sell==1) {
                 printf("sell %d\n", robotId);
-                workbenches[table_id].lock = 0;//解锁
+                robots[robotId].sell=0;
+                workbenches[robots[robotId].table_id].lock = 0;//解锁
                 fflush(stdout);
+                 }
             }
+
+
+
+
+
         }
         printf("OK\n");
         fflush(stdout);
