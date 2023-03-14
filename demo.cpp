@@ -65,7 +65,7 @@ int buy, sell;//是否进行购买
 
 // 读取一帧的信息
 void read_frame_info(int& money) {
-    cin >> money >> workbench_cnt;             // 场上工作台的数量 K
+    cin >> money >> workbench_cnt;
     for (int i = 0; i < workbench_cnt; i++) {
         cin >> workbenches[i].type;
         workbenches[i].pos = read_point();
@@ -147,18 +147,6 @@ double my_distance(Point p1, Point p2)//计算两个点之间的坐标
 
 int best_fit(double& min_dis, int robotid)//寻找当前最适合机器人前往的工作台
 {
-<<<<<<< HEAD
-    int min_id = 0;//距离最近的工作台
-    min_dis = 0x3ffff;
-    if (robots[robotid].carrying_type == 0)//机器人没有携带物品
-    {
-        for (map<int,int>::iterator itbegin = full.begin();itbegin != full.end();itbegin++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-            {
-                    if (itbegin->second == 0)    //没有成品的工作台
-                    {
-                        continue;
-                    }
-=======
     int min_id = 0;
     min_dis = 99999.0;
     if (robots[robotid].carrying_type == 0)//机器人没有携带物品
@@ -169,57 +157,19 @@ int best_fit(double& min_dis, int robotid)//寻找当前最适合机器人前往
             {
                 continue;
             }
-<<<<<<< HEAD
->>>>>>> a53965f67d3c1fad62fcf5a6859d5cc729beddd3
-            double dis = my_distance(robots[robotid].pos, workbenches[itbegin->first].pos);
-                    if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
-                    {
-                        min_dis = dis;                //距离
-                        min_id = itbegin->first;      //工作台编号
-                    }
-=======
             double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
             if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
             {
                 min_dis = dis;                //距离
                 min_id = i;      //工作台编号
                 buy = 1;//这个机器人要买东西了
->>>>>>> 7f828dc8c7bc0dac88737e1845269621525174d8
             }
-<<<<<<< HEAD
-            buy = 1;//这个机器人要买东西了
-            //full[min_id] = 0;  //这里是我单独加的，在想要不要在这里就改变，就可以避免都去找同一个有成品工作台
-=======
         }
-<<<<<<< HEAD
-        buy = 1;//这个机器人要买东西了
->>>>>>> a53965f67d3c1fad62fcf5a6859d5cc729beddd3
-=======
->>>>>>> 7f828dc8c7bc0dac88737e1845269621525174d8
     }
     else//机器人携带物品
     {   //遍历需要机器人所携带材料的工作台(只要曾经需要过机器人携带的材料，就会在这里面)
         for (int i = 0;i < workbench_cnt;i++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
         {
-<<<<<<< HEAD
-<<<<<<< HEAD
-                if (itbegin->second==0)//工作台不需要该材料
-                {
-                    continue;
-                }
-=======
-            if (itbegin->second == 0)//工作台不需要该材料
-            {
-                continue;
-            }
->>>>>>> a53965f67d3c1fad62fcf5a6859d5cc729beddd3
-            double dis = my_distance(robots[robotid].pos, workbenches[itbegin->first].pos);
-                if (min_dis > dis)  //寻找需要改材料的工作台中最近的
-                {
-                    min_dis = dis;                    //距离
-                    min_id = itbegin->first;          //工作台编号
-                }
-=======
             //如果这种类型的工作台不需要这种类型的材料
             if ((tp_worktable[workbenches[i].type].raw_material & (1 << (robots[robotid].carrying_type))) == 0)
             {
@@ -237,7 +187,6 @@ int best_fit(double& min_dis, int robotid)//寻找当前最适合机器人前往
                 min_id = i;          //工作台编号
                 sell = 1;//这个机器人要卖东西了
             }
->>>>>>> 7f828dc8c7bc0dac88737e1845269621525174d8
         }
     }
     return min_id;
@@ -256,44 +205,10 @@ double cal_angle(int table_id, int robot_id) {
 int main() {
     init();
     readmap();
-<<<<<<< HEAD
-    int frameID, money;                                             //帧序号 当前金钱数
-    vector<Workbench> workbenches;
-    vector<Robot> robots;
-   while (scanf("%d", &frameID) != EOF) {
-    read_frame_info(money);
-    printf("%d\n", frameID);
-    fflush(stdout);
-    //update_workbench();
-    double lineSpeed = 3;
-    double angleSpeed = 1.5;
-    double my_distance;
-    for (int robotId = 0; robotId < 4; robotId++) {
-        buy = 0, sell = 0;//清空上一轮的购买标记
-        int table_id = best_fit(my_distance, robotId);
-        double move_distance = my_distance / (1.0 / 50);
-        double rotate_angle = cal_angle(table_id, robotId);
-        if (move_distance > 6.0) {
-            move_distance = 6.0;
-        }
-        if (move_distance < -2.0) {
-            move_distance = -2.0;
-        }
-        if (rotate_angle > M_PI) {
-            rotate_angle = M_PI;
-        }
-        if (rotate_angle < -M_PI) {
-            rotate_angle = -M_PI;
-        }
-        lineSpeed = move_distance / (1.0 / 50);//一帧走过去
-        angleSpeed = rotate_angle / (1.0 / 50);//一帧转完
-        printf("rotate %d %f\n", robotId, angleSpeed);
-=======
     int frameID, money;
     while (scanf("%d", &frameID) != EOF) {
         read_frame_info(money);
         printf("%d\n", frameID);
->>>>>>> a53965f67d3c1fad62fcf5a6859d5cc729beddd3
         fflush(stdout);
         //update_workbench();
         double lineSpeed = 3;
