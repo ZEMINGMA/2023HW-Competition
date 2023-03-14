@@ -159,7 +159,7 @@ int best_fit(double& min_dis, int robotid)//寻找当前最适合机器人前往
                 continue;
             }
             //如果有其它机器人奔向，本机器人不去
-            if (workbenches[i].lock == 1)
+            if (workbenches[i].lock != robotid + 1 && workbenches[i].lock != 0)
             {
                 continue;
             }
@@ -187,7 +187,7 @@ int best_fit(double& min_dis, int robotid)//寻找当前最适合机器人前往
                 continue;
             }
             //如果有其它机器人奔向，本机器人不去
-            if (workbenches[i].lock == 1)
+            if (workbenches[i].lock != robotid + 1&& workbenches[i].lock != 0)
             {
                 continue;
             }
@@ -230,7 +230,7 @@ int main() {
             int table_id = best_fit(my_distance, robotId);
             if (table_id != -1)
             {
-                workbenches[table_id].lock = 1;//锁
+                workbenches[table_id].lock = robotId+1;//锁
             }
             double move_distance = my_distance / (1.0 / 50);//线速度
             double rotate_angle = cal_angle(table_id, robotId) / (1.0 / 50);//加速度
