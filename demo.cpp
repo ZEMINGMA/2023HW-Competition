@@ -10,6 +10,7 @@
 #include <cstdio>
 //#include <windows.h>
 #include <string>
+#include <unistd.h>
 
 using namespace std;
 #define M_PI		3.14159265358979323846
@@ -103,19 +104,19 @@ void init()//初始化每种类型的工作台的信息
     tp_worktable[3].produce = 3;
 
     tp_worktable[4].period = 500;
-    tp_worktable[4].raw_material = (1 << 1) & (1 << 2);
+    tp_worktable[4].raw_material = (1 << 1) | (1 << 2);
     tp_worktable[4].produce = 4;
 
     tp_worktable[5].period = 500;
-    tp_worktable[5].raw_material = (1 << 1) & (1 << 3);
+    tp_worktable[5].raw_material = (1 << 1) | (1 << 3);
     tp_worktable[5].produce = 5;
 
     tp_worktable[6].period = 500;
-    tp_worktable[6].raw_material = (1 << 2) & (1 << 3);
+    tp_worktable[6].raw_material = (1 << 2) | (1 << 3);
     tp_worktable[6].produce = 6;
 
     tp_worktable[7].period = 1000;
-    tp_worktable[7].raw_material = (1 << 4) & (1 << 5) & (1 << 6);
+    tp_worktable[7].raw_material = (1 << 4) | (1 << 5) | (1 << 6);
     tp_worktable[7].produce = 7;
 
     tp_worktable[8].period = 1;
@@ -123,7 +124,7 @@ void init()//初始化每种类型的工作台的信息
     tp_worktable[8].produce = 0;
 
     tp_worktable[9].period = 1;
-    tp_worktable[9].raw_material = (1 << 1) & (1 << 2) & (1 << 3) & (1 << 4) & (1 << 5) & (1 << 6) & (1 << 7);
+    tp_worktable[9].raw_material = (1 << 1) | (1 << 2) | (1 << 3)| (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);
     tp_worktable[9].produce = 0;
 
 }
@@ -176,6 +177,7 @@ int best_fit(double& min_dis, int robotid)//寻找当前最适合机器人前往
     }
     else//机器人携带物品
     {   //遍历需要机器人所携带材料的工作台(只要曾经需要过机器人携带的材料，就会在这里面)
+        fprintf(stderr, "robotid=%d have obj %d\n",robotid,robots[robotid].carrying_type);
         for (int i = 0;i < workbench_cnt;i++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
         {
             //如果这种类型的工作台不需要这种类型的材料
@@ -225,8 +227,11 @@ int main() {
 
         for (int robotId = 0; robotId < 4; robotId++) {
 
-            if(robots[robotId].sell==0 && robots[robotId].buy==0)
+            if((robots[robotId].sell==0) && (robots[robotId].buy==0)){
                 robots[robotId].table_id = best_fit(my_distance, robotId);  //只有当机器人需要进行购买或者出售的时候后才去fit
+                fprintf(stderr, "robotId=%d go to table=%d buy=%d  sell=%d\n",robotId, robots[robotId].table_id,robots[robotId].buy,robots[robotId].sell);
+            }
+            //sleep(1);
 
             if (robots[robotId].table_id != -1)
             {
