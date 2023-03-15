@@ -84,7 +84,7 @@ void read_frame_info(int& money) {
         // 读入机器人的携带物品的时间价值系数和碰撞价值系数
         // 读入机器人的角速度、线速度、朝向和位置
         
-        if (frameID % 500 == 0) {
+        if (frameID % 50 == 0) {
             robots[i].before_pos.x = robots[i].pos.x;
             robots[i].before_pos.y = robots[i].pos.y;
         }
@@ -616,7 +616,7 @@ int main() {
                  }
                 else if(robots[robotId].destroy==1 && robots[robotId].sell==1){
                     printf("destroy %d\n", robotId);
-                    fprintf(stderr,"robots %d destroy",robotId);
+                    fprintf(stderr,"robots %d destroy\n",robotId);
                     robots[robotId].sell=0;
                     robots[robotId].destroy=0;
                     workbenches[robots[robotId].table_id].lock = 0;//解锁
