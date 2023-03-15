@@ -10,7 +10,7 @@
 #include <cstdio>
 //#include <windows.h>
 #include <string>
-#include <unistd.h>
+//#include <unistd.h>
 #include <random>
 #include <ctime>
 
@@ -37,7 +37,8 @@ struct Workbench {
     int remaining_time; // 剩余生产时间（帧数）
     int raw_bits; // 原材料格状态，二进制位表描述，例如 48（110000）表示拥有物品 4 和 5
     int product_bit; // 产品格状态，0 表示无，1 表示有
-    int lock;//当前控制台是否有机器人奔向
+    int product_lock;//当前产品是否有机器人奔向
+    int raw_lock;//当前材料格是否有机器人奔向
 };
 
 // 机器人
@@ -73,6 +74,58 @@ type_worktable_struct tp_worktable[10];
 Workbench workbenches[55];//为了通过工作台ID访问工作台
 Robot robots[4];//为了通过机器人ID访问机器人
 
+void lock(int raw_or_product, int raw_or_product_id, int robotid, int workbenchid)
+{
+    if (raw_or_product == 0)//如果是原材料
+    {
+        fprintf(stderr, "before lock raw_lock:%d,workbenchid:%d\n", workbenches[workbenchid].raw_lock, workbenchid);
+        workbenches[workbenchid].raw_lock |= 1 << raw_or_product_id;
+        fprintf(stderr, "after lock raw_lock:%d,workbenchid:%d\n", workbenches[workbenchid].raw_lock,workbenchid);
+
+        //Sleep(100);
+    }
+    else//如果是产品
+    {
+        workbenches[workbenchid].product_lock = robotid + 1;
+    }
+}
+
+void unlock(int raw_or_product, int raw_or_product_id, int robotid, int workbenchid)
+{
+    if (raw_or_product == 0)//如果是原材料
+    {
+        fprintf(stderr, "before unlock raw_lock:%d,workbenchid:%d\n", workbenches[workbenchid].raw_lock, workbenchid);
+        workbenches[workbenchid].raw_lock &= ~(1 << raw_or_product_id);
+        fprintf(stderr, "after unlock raw_lock:%d,workbenchid:%d\n", workbenches[workbenchid].raw_lock, workbenchid);
+        workbenches[workbenchid].raw_bits |= 1 << robots[robotid].carrying_type;
+        //Sleep(100);
+    }
+    else//如果是产品
+    {
+        workbenches[workbenchid].product_lock = 0;
+        workbenches[workbenchid].product_bit = 0;
+    }
+}
+
+int check_lock(int raw_or_product, int raw_or_product_id, int robotid, int workbenchid)//1表示被锁了，0表示没有被锁
+{
+    if (raw_or_product == 0)//如果是原材料
+    {
+        if ((workbenches[workbenchid].raw_lock & (1 << raw_or_product_id)) != 0)
+        {
+            return 1;
+        }
+    }
+    else//如果是产品
+    {
+        if (workbenches[workbenchid].product_lock != 0 && workbenches[workbenchid].product_lock != robotid + 1)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 // 生成范围为[min, max]的随机浮点数
 double random_double(double min, double max) {
     static std::mt19937 generator(std::time(0));
@@ -97,7 +150,7 @@ void read_frame_info(int& money) {
             robots[i].before_pos.y = robots[i].pos.y;
         }
 
-        cin >> robots[i].angular_speed >> robots[i].linear_speed.x >> robots[i].linear_speed.y>> robots[i].facing_direction >> robots[i].pos.x >> robots[i].pos.y;
+        cin >> robots[i].angular_speed >> robots[i].linear_speed.x >> robots[i].linear_speed.y >> robots[i].facing_direction >> robots[i].pos.x >> robots[i].pos.y;
     }
     // 读入一行字符串，判断是否输入完毕
     string ok;
@@ -140,21 +193,21 @@ void init()//初始化每种类型的工作台的信息
     tp_worktable[8].produce = 0;
 
     tp_worktable[9].period = 1;
-    tp_worktable[9].raw_material = (1 << 1) | (1 << 2) | (1 << 3)| (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);
+    tp_worktable[9].raw_material = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);
     tp_worktable[9].produce = 0;
 
 }
 
 //载入地图
 void readmap() {
-        for (int i = 1;i <= 100;++i)
-            for (int j = 1;j <= 100;++j)
-                cin >> mp[i][j];
-        string ok;
-        cin >> ok;
-        cout << ok << endl;
-        fflush(stdout);
-        assert(ok == "OK"); // 最后一行必须是OK
+    for (int i = 1;i <= 100;++i)
+        for (int j = 1;j <= 100;++j)
+            cin >> mp[i][j];
+    string ok;
+    cin >> ok;
+    cout << ok << endl;
+    fflush(stdout);
+    assert(ok == "OK"); // 最后一行必须是OK
 }
 
 double my_distance(Point p1, Point p2)//计算两个点之间的坐标
@@ -166,485 +219,729 @@ int best_fit(double& min_dis, int robotid)//寻找当前最适合机器人前往
 {
     int min_id = -1;
     min_dis = 99999.0;
-    int need=0;
-    if(robotid==0){
-                if(robots[robotid].carrying_type == 0)//机器人没有携带物品
+
+    if (robotid == 0) {//机器人不携带物品
+        if (robots[robotid].carrying_type == 0)//机器人没有携带物品
+        {
+            for (int i = 0;i < workbench_cnt;++i)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+            {
+                if (workbenches[i].type != 7 && workbenches[i].type != 6 && workbenches[i].type != 5)
                 {
-                    for (int i = 0;i < workbench_cnt;++i)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                    {
-                        if (workbenches[i].type!=7&&workbenches[i].type!=6&&workbenches[i].type!=5)
-                            {continue;}
-                        
-                        if (workbenches[i].product_bit == 0)//如果没有生产出产品
-                            {continue;}
-                    
-                        if (workbenches[i].lock != robotid + 1 && workbenches[i].lock != 0) //如果有其它机器人奔向，本机器人不去
-                            {continue;}
-
-                        for (int j = 0;j < workbench_cnt;++j)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                        {
-                            //如果这种类型的工作台不需要这种类型的材料
-                            if ((tp_worktable[workbenches[j].type].raw_material & (1 << (workbenches[i].type))) == 0)
-                                {continue;}
-                            //如果工作台已经有了这种原材料
-                            if ((workbenches[j].raw_bits & (1 << (workbenches[i].type))) != 0)
-                                {continue;}
-                            need=1;
-                        }
-                        if(need==0) break;
-
-                        double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
-                        if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
-                        {
-                            min_dis = dis;                //距离
-                            min_id = i;      //工作台编号
-                            robots[robotid].buy = 1;//这个机器人要买东西了
-                            
-                        }
-                    }
-
-                    if(min_id!=-1)return min_id;
-
-                    for (int i = 0;i < workbench_cnt;++i)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                    {
-                        if (workbenches[i].type!=3)
-                            {continue;}
-                        
-                        if (workbenches[i].product_bit == 0)//如果没有生产出产品
-                            {continue;}
-                    
-                        if (workbenches[i].lock != robotid + 1 && workbenches[i].lock != 0) //如果有其它机器人奔向，本机器人不去
-                            {continue;}
-
-                        for (int j = 0;j < workbench_cnt;++j)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                        {
-                            //如果这种类型的工作台不需要这种类型的材料
-                            if ((tp_worktable[workbenches[j].type].raw_material & (1 << (workbenches[i].type))) == 0)
-                                {continue;}
-                            //如果工作台已经有了这种原材料
-                            if ((workbenches[j].raw_bits & (1 << (workbenches[i].type))) != 0)
-                                {continue;}
-                            need=1;
-                        }
-                        if(need==0) break;
-
-                        double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
-                        if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
-                        {
-                            min_dis = dis;                //距离
-                            min_id = i;      //工作台编号
-                            robots[robotid].buy = 1;//这个机器人要买东西了
-                        }
-                    }
-                    if(min_id!=-1)return min_id;
+                    continue;
                 }
-                else//机器人携带物品
-                {   //遍历需要机器人所携带材料的工作台(只要曾经需要过机器人携带的材料，就会在这里面)
-                    fprintf(stderr, "robotid=%d have obj %d\n",robotid,robots[robotid].carrying_type);
-                    for (int i = 0;i < workbench_cnt;i++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                    {
-                        if (workbenches[i].type!=9&&workbenches[i].type!=8)
-                            {continue;}
-                        //如果这种类型的工作台不需要这种类型的材料
-                        if ((tp_worktable[workbenches[i].type].raw_material & (1 << (robots[robotid].carrying_type))) == 0)
-                            {continue;}
-                        //如果工作台已经有了这种原材料
-                        if ((workbenches[i].raw_bits & (1 << (robots[robotid].carrying_type))) != 0)
-                            {continue;}
-                        //如果有其它机器人奔向，本机器人不去
-                        if (workbenches[i].lock != robotid + 1&& workbenches[i].lock != 0)
-                            {continue;}
-                        double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
-                        if (min_dis > dis)  //寻找需要改材料的工作台中最近的
-                        {
-                            min_dis = dis;                    //距离
-                            min_id = i;          //工作台编号
-                            robots[robotid].sell = 1;//这个机器人要卖东西了
-                        }
-                    }
-                    if(min_id!=-1)return min_id;
-                    for (int i = 0;i < workbench_cnt;i++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                    {
-                        if (workbenches[i].type!=7&&workbenches[i].type!=6&&workbenches[i].type!=5)
-                            {continue;}
-                        //如果这种类型的工作台不需要这种类型的材料
-                        if ((tp_worktable[workbenches[i].type].raw_material & (1 << (robots[robotid].carrying_type))) == 0)
-                            {continue;}
-                        //如果工作台已经有了这种原材料
-                        if ((workbenches[i].raw_bits & (1 << (robots[robotid].carrying_type))) != 0)
-                            {continue;}
-                        //如果有其它机器人奔向，本机器人不去
-                        if (workbenches[i].lock != robotid + 1&& workbenches[i].lock != 0)
-                            {continue;}
-                        double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
-                        if (min_dis > dis)  //寻找需要改材料的工作台中最近的
-                        {
-                            min_dis = dis;                    //距离
-                            min_id = i;          //工作台编号
-                            robots[robotid].sell = 1;//这个机器人要卖东西了
-                        }
-                    }
-                    if(min_id!=-1)return min_id;
 
-                    }
-                }
-    if(robotid==1){
-                if(robots[robotid].carrying_type == 0)//机器人没有携带物品
+                if (workbenches[i].product_bit == 0)//如果没有生产出产品
                 {
-                    for (int i = 0;i < workbench_cnt;++i)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                    {
-                        if (workbenches[i].type!=7&&workbenches[i].type!=4&&workbenches[i].type!=6)
-                            {continue;}
-                        
-                        if (workbenches[i].product_bit == 0)//如果没有生产出产品
-                            {continue;}
-                    
-                        if (workbenches[i].lock != robotid + 1 && workbenches[i].lock != 0) //如果有其它机器人奔向，本机器人不去
-                            {continue;}
-
-                        for (int j = 0;j < workbench_cnt;++j)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                        {
-                            //如果这种类型的工作台不需要这种类型的材料
-                            if ((tp_worktable[workbenches[j].type].raw_material & (1 << (workbenches[i].type))) == 0)
-                                {continue;}
-                            //如果工作台已经有了这种原材料
-                            if ((workbenches[j].raw_bits & (1 << (workbenches[i].type))) != 0)
-                                {continue;}
-                            need=1;
-                        }
-                        if(need==0) break;
-
-                        double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
-                        if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
-                        {
-                            min_dis = dis;                //距离
-                            min_id = i;      //工作台编号
-                            robots[robotid].buy = 1;//这个机器人要买东西了
-                        }
-                    }
-
-                    if(min_id!=-1)return min_id;
-                    
-                    for (int i = 0;i < workbench_cnt;++i)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                    {
-                        if (workbenches[i].type!=2)
-                            {continue;}
-                        
-                        if (workbenches[i].product_bit == 0)//如果没有生产出产品
-                            {continue;}
-                    
-                        if (workbenches[i].lock != robotid + 1 && workbenches[i].lock != 0) //如果有其它机器人奔向，本机器人不去
-                            {continue;}
-
-                        for (int j = 0;j < workbench_cnt;++j)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                        {
-                            //如果这种类型的工作台不需要这种类型的材料
-                            if ((tp_worktable[workbenches[j].type].raw_material & (1 << (workbenches[i].type))) == 0)
-                                {continue;}
-                            //如果工作台已经有了这种原材料
-                            if ((workbenches[j].raw_bits & (1 << (workbenches[i].type))) != 0)
-                                {continue;}
-                            need=1;
-                        }
-                        if(need==0) break;
-
-                        double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
-                        if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
-                        {
-                            min_dis = dis;                //距离
-                            min_id = i;      //工作台编号
-                            robots[robotid].buy = 1;//这个机器人要买东西了
-                        }
-                    }
-
-                    if(min_id!=-1)return min_id;
+                    continue;
                 }
-                else//机器人携带物品
-                {   //遍历需要机器人所携带材料的工作台(只要曾经需要过机器人携带的材料，就会在这里面)
-                    fprintf(stderr, "robotid=%d have obj %d\n",robotid,robots[robotid].carrying_type);
-                    for (int i = 0;i < workbench_cnt;i++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                    {
-                        if (workbenches[i].type!=9&&workbenches[i].type!=8)
-                            {continue;}
-                        //如果这种类型的工作台不需要这种类型的材料
-                        if ((tp_worktable[workbenches[i].type].raw_material & (1 << (robots[robotid].carrying_type))) == 0)
-                            {continue;}
-                        //如果工作台已经有了这种原材料
-                        if ((workbenches[i].raw_bits & (1 << (robots[robotid].carrying_type))) != 0)
-                            {continue;}
-                        //如果有其它机器人奔向，本机器人不去
-                        if (workbenches[i].lock != robotid + 1&& workbenches[i].lock != 0)
-                            {continue;}
-                        double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
-                        if (min_dis > dis)  //寻找需要改材料的工作台中最近的
-                        {
-                            min_dis = dis;                    //距离
-                            min_id = i;          //工作台编号
-                            robots[robotid].sell = 1;//这个机器人要卖东西了
-                        }
-                    }
-                    if(min_id!=-1)return min_id;
-                    for (int i = 0;i < workbench_cnt;i++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                    {
-                        if (workbenches[i].type!=7&&workbenches[i].type!=4&&workbenches[i].type!=6)
-                            {continue;}
-                        //如果这种类型的工作台不需要这种类型的材料
-                        if ((tp_worktable[workbenches[i].type].raw_material & (1 << (robots[robotid].carrying_type))) == 0)
-                            {continue;}
-                        //如果工作台已经有了这种原材料
-                        if ((workbenches[i].raw_bits & (1 << (robots[robotid].carrying_type))) != 0)
-                            {continue;}
-                        //如果有其它机器人奔向，本机器人不去
-                        if (workbenches[i].lock != robotid + 1&& workbenches[i].lock != 0)
-                            {continue;}
-                        double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
-                        if (min_dis > dis)  //寻找需要改材料的工作台中最近的
-                        {
-                            min_dis = dis;                    //距离
-                            min_id = i;          //工作台编号
-                            robots[robotid].sell = 1;//这个机器人要卖东西了
-                        }
-                    }
-                    if(min_id!=-1)return min_id;
 
-                    }
-                }
-    if(robotid==2){
-                if(robots[robotid].carrying_type == 0)//机器人没有携带物品
+                //if (workbenches[i].lock != robotid + 1 && workbenches[i].lock != 0) //如果有其它机器人奔向，本机器人不去
+                    //{continue;}
+                if (check_lock(1, tp_worktable[workbenches[i].type].produce, robotid, i))
                 {
-                    for (int i = 0;i < workbench_cnt;++i)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                    {
-                        if (workbenches[i].type!=7&&workbenches[i].type!=4&&workbenches[i].type!=5)
-                            {continue;}
-                        
-                        if (workbenches[i].product_bit == 0)//如果没有生产出产品
-                            {continue;}
-                    
-                        if (workbenches[i].lock != robotid + 1 && workbenches[i].lock != 0) //如果有其它机器人奔向，本机器人不去
-                            {continue;}
-
-                        for (int j = 0;j < workbench_cnt;++j)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                        {
-                            //如果这种类型的工作台不需要这种类型的材料
-                            if ((tp_worktable[workbenches[j].type].raw_material & (1 << (workbenches[i].type))) == 0)
-                                {continue;}
-                            //如果工作台已经有了这种原材料
-                            if ((workbenches[j].raw_bits & (1 << (workbenches[i].type))) != 0)
-                                {continue;}
-                            need=1;
-                        }
-                        if(need==0) break;
-
-                        double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
-                        if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
-                        {
-                            min_dis = dis;                //距离
-                            min_id = i;      //工作台编号
-                            robots[robotid].buy = 1;//这个机器人要买东西了
-                        }
-                    }
-                    if(min_id!=-1)return min_id;
-                    for (int i = 0;i < workbench_cnt;++i)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                    {
-                        if (workbenches[i].type!=1)
-                            {continue;}
-                        
-                        if (workbenches[i].product_bit == 0)//如果没有生产出产品
-                            {continue;}
-                    
-                        if (workbenches[i].lock != robotid + 1 && workbenches[i].lock != 0) //如果有其它机器人奔向，本机器人不去
-                            {continue;}
-
-                        for (int j = 0;j < workbench_cnt;++j)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                        {
-                            //如果这种类型的工作台不需要这种类型的材料
-                            if ((tp_worktable[workbenches[j].type].raw_material & (1 << (workbenches[i].type))) == 0)
-                                {continue;}
-                            //如果工作台已经有了这种原材料
-                            if ((workbenches[j].raw_bits & (1 << (workbenches[i].type))) != 0)
-                                {continue;}
-                            need=1;
-                        }
-                        if(need==0) break;
-
-                        double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
-                        if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
-                        {
-                            min_dis = dis;                //距离
-                            min_id = i;      //工作台编号
-                            robots[robotid].buy = 1;//这个机器人要买东西了
-                        }
-                    }
-                    if(min_id!=-1)return min_id;
+                    continue;
                 }
-                else//机器人携带物品
-                {   //遍历需要机器人所携带材料的工作台(只要曾经需要过机器人携带的材料，就会在这里面)
-                    fprintf(stderr, "robotid=%d have obj %d\n",robotid,robots[robotid].carrying_type);
-                    for (int i = 0;i < workbench_cnt;i++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                    {
-                        if (workbenches[i].type!=9&&workbenches[i].type!=8)
-                            {continue;}
-                        //如果这种类型的工作台不需要这种类型的材料
-                        if ((tp_worktable[workbenches[i].type].raw_material & (1 << (robots[robotid].carrying_type))) == 0)
-                            {continue;}
-                        //如果工作台已经有了这种原材料
-                        if ((workbenches[i].raw_bits & (1 << (robots[robotid].carrying_type))) != 0)
-                            {continue;}
-                        //如果有其它机器人奔向，本机器人不去
-                        if (workbenches[i].lock != robotid + 1&& workbenches[i].lock != 0)
-                            {continue;}
-                        double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
-                        if (min_dis > dis)  //寻找需要改材料的工作台中最近的
-                        {
-                            min_dis = dis;                    //距离
-                            min_id = i;          //工作台编号
-                            robots[robotid].sell = 1;//这个机器人要卖东西了 
-                        }
-                    }
-                    if(min_id!=-1)return min_id;
-
-                    for (int i = 0;i < workbench_cnt;i++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                    {
-                        if (workbenches[i].type!=7&&workbenches[i].type!=4&&workbenches[i].type!=5)
-                            {continue;}
-                        //如果这种类型的工作台不需要这种类型的材料
-                        if ((tp_worktable[workbenches[i].type].raw_material & (1 << (robots[robotid].carrying_type))) == 0)
-                            {continue;}
-                        //如果工作台已经有了这种原材料
-                        if ((workbenches[i].raw_bits & (1 << (robots[robotid].carrying_type))) != 0)
-                            {continue;}
-                        //如果有其它机器人奔向，本机器人不去
-                        if (workbenches[i].lock != robotid + 1&& workbenches[i].lock != 0)
-                            {continue;}
-                        double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
-                        if (min_dis > dis)  //寻找需要改材料的工作台中最近的
-                        {
-                            min_dis = dis;                    //距离
-                            min_id = i;          //工作台编号
-                            robots[robotid].sell = 1;//这个机器人要卖东西了
-                        }
-                    }
-                    if(min_id!=-1)return min_id;
-
-
-                    }
-                }
-    if(robotid==3){
-                if(robots[robotid].carrying_type == 0)//机器人没有携带物品
+                int need = 0;
+                for (int j = 0;j < workbench_cnt;++j)//遍历所有工作台(只要曾经有过成品就会出现在full里)
                 {
-                    for (int i = 0;i < workbench_cnt;++i)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+                    //如果这种类型的工作台不需要这种类型的材料
+                    if ((tp_worktable[workbenches[j].type].raw_material & (1 << (tp_worktable[workbenches[i].type].produce))) == 0)
                     {
-                        if (workbenches[i].type!=7&&workbenches[i].type!=6&&workbenches[i].type!=5&&workbenches[i].type!=4)
-                            {continue;}
-                        
-                        if (workbenches[i].product_bit == 0)//如果没有生产出产品
-                            {continue;}
-                    
-                        if (workbenches[i].lock != robotid + 1 && workbenches[i].lock != 0) //如果有其它机器人奔向，本机器人不去
-                            {continue;}
-                        for (int j = 0;j < workbench_cnt;++j)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                        {
-                            //如果这种类型的工作台不需要这种类型的材料
-                            if ((tp_worktable[workbenches[j].type].raw_material & (1 << (workbenches[i].type))) == 0)
-                                {continue;}
-                            //如果工作台已经有了这种原材料
-                            if ((workbenches[j].raw_bits & (1 << (workbenches[i].type))) != 0)
-                                {continue;}
-                            need=1;
-                        }
-                        if(need==0) break;
-
-                        double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
-                        if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
-                        {
-                            min_dis = dis;                //距离
-                            min_id = i;      //工作台编号
-                            robots[robotid].buy = 1;//这个机器人要买东西了
-                        }
+                        continue;
                     }
-                    if(min_id!=-1)return min_id;
-                    for (int i = 0;i < workbench_cnt;++i)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+                    //如果工作台已经有了这种原材料
+                    if ((workbenches[j].raw_bits & (1 << (tp_worktable[workbenches[i].type].produce))) != 0)
                     {
-                        if (workbenches[i].type!=3&&workbenches[i].type!=2&&workbenches[i].type!=1)
-                            {continue;}
-                        
-                        if (workbenches[i].product_bit == 0)//如果没有生产出产品
-                            {continue;}
-                    
-                        if (workbenches[i].lock != robotid + 1 && workbenches[i].lock != 0) //如果有其它机器人奔向，本机器人不去
-                            {continue;}
-
-                        for (int j = 0;j < workbench_cnt;++j)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                        {
-                            //如果这种类型的工作台不需要这种类型的材料
-                            if ((tp_worktable[workbenches[j].type].raw_material & (1 << (workbenches[i].type))) == 0)
-                                {continue;}
-                            //如果工作台已经有了这种原材料
-                            if ((workbenches[j].raw_bits & (1 << (workbenches[i].type))) != 0)
-                                {continue;}
-                            need=1;
-                        }
-                        if(need==0) break;
-
-                        double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
-                        if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
-                        {
-                            min_dis = dis;                //距离
-                            min_id = i;      //工作台编号
-                            robots[robotid].buy = 1;//这个机器人要买东西了
-                        }
+                        continue;
                     }
-                    if(min_id!=-1)return min_id;
+                    //如果工作台已经的这种原材料已经被死锁了
+                    if ((workbenches[j].raw_lock & (1 << (tp_worktable[workbenches[i].type].produce))) != 0)
+                    {
+                        continue;
+                    }
+                    need = 1;
                 }
-                else//机器人携带物品
-                {   //遍历需要机器人所携带材料的工作台(只要曾经需要过机器人携带的材料，就会在这里面)
-                    fprintf(stderr, "robotid=%d have obj %d\n",robotid,robots[robotid].carrying_type);
-                    for (int i = 0;i < workbench_cnt;i++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                    {
-                        if (workbenches[i].type!=8&&workbenches[i].type!=9)
-                            {continue;}
-                        //如果这种类型的工作台不需要这种类型的材料
-                        if ((tp_worktable[workbenches[i].type].raw_material & (1 << (robots[robotid].carrying_type))) == 0)
-                            {continue;}
-                        //如果工作台已经有了这种原材料
-                        if ((workbenches[i].raw_bits & (1 << (robots[robotid].carrying_type))) != 0)
-                            {continue;}
-                        //如果有其它机器人奔向，本机器人不去
-                        if (workbenches[i].lock != robotid + 1&& workbenches[i].lock != 0)
-                            {continue;}
-                        double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
-                        if (min_dis > dis)  //寻找需要改材料的工作台中最近的
-                        {
-                            min_dis = dis;                    //距离
-                            min_id = i;          //工作台编号
-                            robots[robotid].sell = 1;//这个机器人要卖东西了
-                        }
-                    }
-                    if(min_id!=-1)return min_id;
-                    for (int i = 0;i < workbench_cnt;i++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
-                    {
-                        if (workbenches[i].type!=7&&workbenches[i].type!=6&&workbenches[i].type!=5&&workbenches[i].type!=4)
-                            {continue;}
-                        //如果这种类型的工作台不需要这种类型的材料
-                        if ((tp_worktable[workbenches[i].type].raw_material & (1 << (robots[robotid].carrying_type))) == 0)
-                            {continue;}
-                        //如果工作台已经有了这种原材料
-                        if ((workbenches[i].raw_bits & (1 << (robots[robotid].carrying_type))) != 0)
-                            {continue;}
-                        //如果有其它机器人奔向，本机器人不去
-                        if (workbenches[i].lock != robotid + 1&& workbenches[i].lock != 0)
-                            {continue;}
-                        double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
-                        if (min_dis > dis)  //寻找需要改材料的工作台中最近的
-                        {
-                            min_dis = dis;                    //距离
-                            min_id = i;          //工作台编号
-                            robots[robotid].sell = 1;//这个机器人要卖东西了
-                        }
-                    }
-                    if(min_id!=-1)return min_id;
-                    }
+                if (need == 0) continue;
+
+                double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
+                if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
+                {
+                    min_dis = dis;                //距离
+                    min_id = i;      //工作台编号
+                    robots[robotid].buy = 1;//这个机器人要买东西了
+
                 }
+            }
+            if (min_id != -1) {
+                lock(1, tp_worktable[workbenches[min_id].type].produce, robotid, min_id);
+                return min_id;
+            }
+
+            for (int i = 0;i < workbench_cnt;++i)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+            {
+                if (workbenches[i].type != 3)
+                {
+                    continue;
+                }
+
+                if (workbenches[i].product_bit == 0)//如果没有生产出产品
+                {
+                    continue;
+                }
+
+                //if (workbenches[i].lock != robotid + 1 && workbenches[i].lock != 0) //如果有其它机器人奔向，本机器人不去
+                  //  {continue;}
+
+                if (check_lock(1, tp_worktable[workbenches[i].type].produce, robotid, i))
+                {
+                    continue;
+                }
+                int need = 0;
+                for (int j = 0;j < workbench_cnt;++j)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+                {
+                    //如果这种类型的工作台不需要这种类型的材料
+                    if ((tp_worktable[workbenches[j].type].raw_material & (1 << (tp_worktable[workbenches[i].type].produce))) == 0)
+                    {
+                        continue;
+                    }
+                    //如果工作台已经有了这种原材料
+                    if ((workbenches[j].raw_bits & (1 << (tp_worktable[workbenches[i].type].produce))) != 0)
+                    {
+                        continue;
+                    }
+                    //如果工作台已经的这种原材料已经被死锁了
+                    if ((workbenches[j].raw_lock & (1 << (tp_worktable[workbenches[i].type].produce))) != 0)
+                    {
+                        continue;
+                    }
+                    need = 1;
+                }
+                if (need == 0) continue;
+
+                double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
+                if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
+                {
+                    min_dis = dis;                //距离
+                    min_id = i;      //工作台编号
+                    robots[robotid].buy = 1;//这个机器人要买东西了
+                }
+            }
+            if (min_id != -1) {
+                lock(1, tp_worktable[workbenches[min_id].type].produce, robotid, min_id);
+                return min_id;
+            }
+        }
+        else//机器人携带物品
+        {   //遍历需要机器人所携带材料的工作台(只要曾经需要过机器人携带的材料，就会在这里面)
+            fprintf(stderr, "robotid=%d have obj %d\n", robotid, robots[robotid].carrying_type);
+            for (int i = 0;i < workbench_cnt;i++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+            {
+                if (workbenches[i].type != 9 && workbenches[i].type != 8)
+                {
+                    continue;
+                }
+                //如果这种类型的工作台不需要这种类型的材料
+                if ((tp_worktable[workbenches[i].type].raw_material & (1 << (robots[robotid].carrying_type))) == 0)
+                {
+                    continue;
+                }
+                //如果工作台已经有了这种原材料
+                if ((workbenches[i].raw_bits & (1 << (robots[robotid].carrying_type))) != 0)
+                {
+                    continue;
+                }
+                //如果有其它机器人奔向，本机器人不去
+                //if (workbenches[i].lock != robotid + 1&& workbenches[i].lock != 0)
+                //{continue;}
+                if (check_lock(0, robots[robotid].carrying_type, robotid, i))
+                {
+                    continue;
+                }
+                double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
+                if (min_dis > dis)  //寻找需要改材料的工作台中最近的
+                {
+                    min_dis = dis;                    //距离
+                    min_id = i;          //工作台编号
+                    robots[robotid].sell = 1;//这个机器人要卖东西了
+                }
+            }
+            if (min_id != -1) {  //加材料锁
+                lock(0, robots[robotid].carrying_type, robotid, min_id);
+                return min_id;
+            }
+            for (int i = 0;i < workbench_cnt;i++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+            {
+                if (workbenches[i].type != 7 && workbenches[i].type != 6 && workbenches[i].type != 5)
+                {
+                    continue;
+                }
+                //如果这种类型的工作台不需要这种类型的材料
+                if ((tp_worktable[workbenches[i].type].raw_material & (1 << (robots[robotid].carrying_type))) == 0)
+                {
+                    continue;
+                }
+                //如果工作台已经有了这种原材料
+                if ((workbenches[i].raw_bits & (1 << (robots[robotid].carrying_type))) != 0)
+                {
+                    continue;
+                }
+                //如果有其它机器人奔向，本机器人不去
+
+                if (check_lock(0, robots[robotid].carrying_type, robotid, i))
+                {
+                    continue;
+                }
+                double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
+                if (min_dis > dis)  //寻找需要改材料的工作台中最近的
+                {
+                    min_dis = dis;                    //距离
+                    min_id = i;          //工作台编号
+                    robots[robotid].sell = 1;//这个机器人要卖东西了
+                }
+            }
+            if (min_id != -1) {  //加材料锁
+                lock(0, robots[robotid].carrying_type, robotid, min_id);
+                return min_id;
+            }
+        }
+    }
+    if (robotid == 1) {
+        if (robots[robotid].carrying_type == 0)//机器人没有携带物品
+        {
+            for (int i = 0;i < workbench_cnt;++i)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+            {
+                if (workbenches[i].type != 7 && workbenches[i].type != 4 && workbenches[i].type != 6)
+                {
+                    continue;
+                }
+
+                if (workbenches[i].product_bit == 0)//如果没有生产出产品
+                {
+                    continue;
+                }
+
+                if (check_lock(1, tp_worktable[workbenches[i].type].produce, robotid, i))
+                {
+                    continue;
+                }
+                int need = 0;
+                for (int j = 0;j < workbench_cnt;++j)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+                {
+                    //如果这种类型的工作台不需要这种类型的材料
+                    if ((tp_worktable[workbenches[j].type].raw_material & (1 << (tp_worktable[workbenches[i].type].produce))) == 0)
+                    {
+                        continue;
+                    }
+                    //如果工作台已经有了这种原材料
+                    if ((workbenches[j].raw_bits & (1 << (tp_worktable[workbenches[i].type].produce))) != 0)
+                    {
+                        continue;
+                    }
+                    //如果工作台已经的这种原材料已经被死锁了
+                    if ((workbenches[j].raw_lock & (1 << (tp_worktable[workbenches[i].type].produce))) != 0)
+                    {
+                        continue;
+                    }
+                    need = 1;
+                }
+                if (need == 0) continue;
+
+                double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
+                if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
+                {
+                    min_dis = dis;                //距离
+                    min_id = i;      //工作台编号
+                    robots[robotid].buy = 1;//这个机器人要买东西了
+                }
+            }
+
+            if (min_id != -1) {   //上产品锁
+                lock(1, tp_worktable[workbenches[min_id].type].produce, robotid, min_id);
+                return min_id;
+            }
+
+            for (int i = 0;i < workbench_cnt;++i)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+            {
+                if (workbenches[i].type != 2)
+                {
+                    continue;
+                }
+
+                if (workbenches[i].product_bit == 0)//如果没有生产出产品
+                {
+                    continue;
+                }
+
+                if (check_lock(1, tp_worktable[workbenches[i].type].produce, robotid, i))
+                {
+                    continue;
+                }
+                int need = 0;
+                for (int j = 0;j < workbench_cnt;++j)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+                {
+                    //如果这种类型的工作台不需要这种类型的材料
+                    if ((tp_worktable[workbenches[j].type].raw_material & (1 << (tp_worktable[workbenches[i].type].produce))) == 0)
+                    {
+                        continue;
+                    }
+                    //如果工作台已经有了这种原材料
+                    if ((workbenches[j].raw_bits & (1 << (tp_worktable[workbenches[i].type].produce))) != 0)
+                    {
+                        continue;
+                    }
+                    //如果工作台已经的这种原材料已经被死锁了
+                    if ((workbenches[j].raw_lock & (1 << (tp_worktable[workbenches[i].type].produce))) != 0)
+                    {
+                        continue;
+                    }
+                    need = 1;
+                }
+                if (need == 0) continue;
+
+                double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
+                if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
+                {
+                    min_dis = dis;                //距离
+                    min_id = i;      //工作台编号
+                    robots[robotid].buy = 1;//这个机器人要买东西了
+                }
+            }
+
+            if (min_id != -1) {   //上产品锁
+                lock(1, tp_worktable[workbenches[min_id].type].produce, robotid, min_id);
+                return min_id;
+            }
+        }
+        else//机器人携带物品
+        {   //遍历需要机器人所携带材料的工作台(只要曾经需要过机器人携带的材料，就会在这里面)
+            fprintf(stderr, "robotid=%d have obj %d\n", robotid, robots[robotid].carrying_type);
+            for (int i = 0;i < workbench_cnt;i++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+            {
+                if (workbenches[i].type != 9 && workbenches[i].type != 8)
+                {
+                    continue;
+                }
+                //如果这种类型的工作台不需要这种类型的材料
+                if ((tp_worktable[workbenches[i].type].raw_material & (1 << (robots[robotid].carrying_type))) == 0)
+                {
+                    continue;
+                }
+                //如果工作台已经有了这种原材料
+                if ((workbenches[i].raw_bits & (1 << (robots[robotid].carrying_type))) != 0)
+                {
+                    continue;
+                }
+                //如果有其它机器人奔向，本机器人不去
+                if (check_lock(0, robots[robotid].carrying_type, robotid, i))
+                {
+                    continue;
+                }
+                double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
+                if (min_dis > dis)  //寻找需要改材料的工作台中最近的
+                {
+                    min_dis = dis;                    //距离
+                    min_id = i;          //工作台编号
+                    robots[robotid].sell = 1;//这个机器人要卖东西了
+                }
+            }
+            if (min_id != -1) {  //加材料锁
+                lock(0, robots[robotid].carrying_type, robotid, min_id);
+                return min_id;
+            }
+            for (int i = 0;i < workbench_cnt;i++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+            {
+                if (workbenches[i].type != 7 && workbenches[i].type != 4 && workbenches[i].type != 6)
+                {
+                    continue;
+                }
+                //如果这种类型的工作台不需要这种类型的材料
+                if ((tp_worktable[workbenches[i].type].raw_material & (1 << (robots[robotid].carrying_type))) == 0)
+                {
+                    continue;
+                }
+                //如果工作台已经有了这种原材料
+                if ((workbenches[i].raw_bits & (1 << (robots[robotid].carrying_type))) != 0)
+                {
+                    continue;
+                }
+                //如果有其它机器人奔向，本机器人不去
+                if (check_lock(0, robots[robotid].carrying_type, robotid, i))
+                {
+                    continue;
+                }
+                double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
+                if (min_dis > dis)  //寻找需要改材料的工作台中最近的
+                {
+                    min_dis = dis;                    //距离
+                    min_id = i;          //工作台编号
+                    robots[robotid].sell = 1;//这个机器人要卖东西了
+                }
+            }
+            if (min_id != -1) {  //加材料锁
+                lock(0, robots[robotid].carrying_type, robotid, min_id);
+                return min_id;
+            }
+
+        }
+    }
+    if (robotid == 2) {
+        if (robots[robotid].carrying_type == 0)//机器人没有携带物品
+        {
+            for (int i = 0;i < workbench_cnt;++i)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+            {
+                if (workbenches[i].type != 7 && workbenches[i].type != 4 && workbenches[i].type != 5)
+                {
+                    continue;
+                }
+
+                if (workbenches[i].product_bit == 0)//如果没有生产出产品
+                {
+                    continue;
+                }
+
+                if (check_lock(1, tp_worktable[workbenches[i].type].produce, robotid, i))
+                {
+                    continue;
+                }
+
+                int need = 0;
+                for (int j = 0;j < workbench_cnt;++j)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+                {
+                    //如果这种类型的工作台不需要这种类型的材料
+                    if ((tp_worktable[workbenches[j].type].raw_material & (1 << (tp_worktable[workbenches[i].type].produce))) == 0)
+                    {
+                        continue;
+                    }
+                    //如果工作台已经有了这种原材料
+                    if ((workbenches[j].raw_bits & (1 << (tp_worktable[workbenches[i].type].produce))) != 0)
+                    {
+                        continue;
+                    }
+                    //如果工作台已经的这种原材料已经被死锁了
+                    if ((workbenches[j].raw_lock & (1 << (tp_worktable[workbenches[i].type].produce))) != 0)
+                    {
+                        continue;
+                    }
+                    need = 1;
+                }
+                if (need == 0) continue;
+
+                double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
+                if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
+                {
+                    min_dis = dis;                //距离
+                    min_id = i;      //工作台编号
+                    robots[robotid].buy = 1;//这个机器人要买东西了
+                }
+            }
+
+            if (min_id != -1) {   //上产品锁
+                lock(1, tp_worktable[workbenches[min_id].type].produce, robotid, min_id);
+                return min_id;
+            }
+            for (int i = 0;i < workbench_cnt;++i)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+            {
+                if (workbenches[i].type != 1)
+                {
+                    continue;
+                }
+
+                if (workbenches[i].product_bit == 0)//如果没有生产出产品
+                {
+                    continue;
+                }
+
+                if (check_lock(1, tp_worktable[workbenches[i].type].produce, robotid, i))
+                {
+                    continue;
+                }
+                int need = 0;
+                for (int j = 0;j < workbench_cnt;++j)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+                {
+                    //如果这种类型的工作台不需要这种类型的材料
+                    if ((tp_worktable[workbenches[j].type].raw_material & (1 << (tp_worktable[workbenches[i].type].produce))) == 0)
+                    {
+                        continue;
+                    }
+                    //如果工作台已经有了这种原材料
+                    if ((workbenches[j].raw_bits & (1 << (tp_worktable[workbenches[i].type].produce))) != 0)
+                    {
+                        continue;
+                    }
+                    //如果工作台已经的这种原材料已经被死锁了
+                    if ((workbenches[j].raw_lock & (1 << (tp_worktable[workbenches[i].type].produce))) != 0)
+                    {
+                        continue;
+                    }
+                    need = 1;
+                }
+                if (need == 0) continue;
+
+                double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
+                if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
+                {
+                    min_dis = dis;                //距离
+                    min_id = i;      //工作台编号
+                    robots[robotid].buy = 1;//这个机器人要买东西了
+                }
+            }
+
+            if (min_id != -1) {   //上产品锁
+                lock(1, tp_worktable[workbenches[min_id].type].produce, robotid, min_id);
+                return min_id;
+            }
+        }
+        else//机器人携带物品
+        {   //遍历需要机器人所携带材料的工作台(只要曾经需要过机器人携带的材料，就会在这里面)
+            fprintf(stderr, "robotid=%d have obj %d\n", robotid, robots[robotid].carrying_type);
+            for (int i = 0;i < workbench_cnt;i++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+            {
+                if (workbenches[i].type != 9 && workbenches[i].type != 8)
+                {
+                    continue;
+                }
+                //如果这种类型的工作台不需要这种类型的材料
+                if ((tp_worktable[workbenches[i].type].raw_material & (1 << (robots[robotid].carrying_type))) == 0)
+                {
+                    continue;
+                }
+                //如果工作台已经有了这种原材料
+                if ((workbenches[i].raw_bits & (1 << (robots[robotid].carrying_type))) != 0)
+                {
+                    continue;
+                }
+                //如果有其它机器人奔向，本机器人不去
+                if (check_lock(0, robots[robotid].carrying_type, robotid, i))
+                {
+                    continue;
+                }
+                double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
+                if (min_dis > dis)  //寻找需要改材料的工作台中最近的
+                {
+                    min_dis = dis;                    //距离
+                    min_id = i;          //工作台编号
+                    robots[robotid].sell = 1;//这个机器人要卖东西了
+                }
+            }
+            if (min_id != -1) {  //加材料锁
+                lock(0, robots[robotid].carrying_type, robotid, min_id);
+                return min_id;
+            }
+
+            for (int i = 0;i < workbench_cnt;i++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+            {
+                if (workbenches[i].type != 7 && workbenches[i].type != 4 && workbenches[i].type != 5)
+                {
+                    continue;
+                }
+                //如果这种类型的工作台不需要这种类型的材料
+                if ((tp_worktable[workbenches[i].type].raw_material & (1 << (robots[robotid].carrying_type))) == 0)
+                {
+                    continue;
+                }
+                //如果工作台已经有了这种原材料
+                if ((workbenches[i].raw_bits & (1 << (robots[robotid].carrying_type))) != 0)
+                {
+                    continue;
+                }
+                //如果有其它机器人奔向，本机器人不去
+                if (check_lock(0, robots[robotid].carrying_type, robotid, i))
+                {
+                    continue;
+                }
+                double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
+                if (min_dis > dis)  //寻找需要改材料的工作台中最近的
+                {
+                    min_dis = dis;                    //距离
+                    min_id = i;          //工作台编号
+                    robots[robotid].sell = 1;//这个机器人要卖东西了
+                }
+            }
+            if (min_id != -1) {  //加材料锁
+                lock(0, robots[robotid].carrying_type, robotid, min_id);
+                return min_id;
+            }
+
+
+        }
+    }
+    if (robotid == 3) {
+        if (robots[robotid].carrying_type == 0)//机器人没有携带物品
+        {
+            for (int i = 0;i < workbench_cnt;++i)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+            {
+                if (workbenches[i].type != 7 && workbenches[i].type != 6 && workbenches[i].type != 5 && workbenches[i].type != 4)
+                {
+                    continue;
+                }
+
+                if (workbenches[i].product_bit == 0)//如果没有生产出产品
+                {
+                    continue;
+                }
+
+                if (check_lock(1, tp_worktable[workbenches[i].type].produce, robotid, i))
+                {
+                    continue;
+                }
+                int need = 0;
+                for (int j = 0;j < workbench_cnt;++j)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+                {
+                    //如果这种类型的工作台不需要这种类型的材料
+                    if ((tp_worktable[workbenches[j].type].raw_material & (1 << (tp_worktable[workbenches[i].type].produce))) == 0)
+                    {
+                        continue;
+                    }
+                    //如果工作台已经有了这种原材料
+                    if ((workbenches[j].raw_bits & (1 << (tp_worktable[workbenches[i].type].produce))) != 0)
+                    {
+                        continue;
+                    }
+                    //如果工作台已经的这种原材料已经被死锁了
+                    if ((workbenches[j].raw_lock & (1 << (tp_worktable[workbenches[i].type].produce))) != 0)
+                    {
+                        continue;
+                    }
+                    need = 1;
+                }
+                if (need == 0) continue;
+
+                double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
+                if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
+                {
+                    min_dis = dis;                //距离
+                    min_id = i;      //工作台编号
+                    robots[robotid].buy = 1;//这个机器人要买东西了
+                }
+            }
+
+            if (min_id != -1) {   //上产品锁
+                lock(1, tp_worktable[workbenches[min_id].type].produce, robotid, min_id);
+                return min_id;
+            }
+            for (int i = 0;i < workbench_cnt;++i)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+            {
+                if (workbenches[i].type != 3 && workbenches[i].type != 2 && workbenches[i].type != 1)
+                {
+                    continue;
+                }
+
+                if (workbenches[i].product_bit == 0)//如果没有生产出产品
+                {
+                    continue;
+                }
+
+                if (check_lock(1, tp_worktable[workbenches[i].type].produce, robotid, i))
+                {
+                    continue;
+                }
+                int need = 0;
+                for (int j = 0;j < workbench_cnt;++j)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+                {
+                    //如果这种类型的工作台不需要这种类型的材料
+                    if ((tp_worktable[workbenches[j].type].raw_material & (1 << (tp_worktable[workbenches[i].type].produce))) == 0)
+                    {
+                        continue;
+                    }
+                    //如果工作台已经有了这种原材料
+                    if ((workbenches[j].raw_bits & (1 << (tp_worktable[workbenches[i].type].produce))) != 0)
+                    {
+                        continue;
+                    }
+                    //如果工作台已经的这种原材料已经被死锁了
+                    if ((workbenches[j].raw_lock & (1 << (tp_worktable[workbenches[i].type].produce))) != 0)
+                    {
+                        continue;
+                    }
+                    need = 1;
+                }
+                if (need == 0) continue;
+
+                double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
+                if (min_dis > dis)  //选取有成品的工作台中距离最小的工作台
+                {
+                    min_dis = dis;                //距离
+                    min_id = i;      //工作台编号
+                    robots[robotid].buy = 1;//这个机器人要买东西了
+                }
+            }
+
+            if (min_id != -1) {   //上产品锁
+                lock(1, tp_worktable[workbenches[min_id].type].produce, robotid, min_id);
+                return min_id;
+            }
+        }
+        else//机器人携带物品
+        {   //遍历需要机器人所携带材料的工作台(只要曾经需要过机器人携带的材料，就会在这里面)
+            fprintf(stderr, "robotid=%d have obj %d\n", robotid, robots[robotid].carrying_type);
+            for (int i = 0;i < workbench_cnt;i++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+            {
+                if (workbenches[i].type != 8 && workbenches[i].type != 9)
+                {
+                    continue;
+                }
+                //如果这种类型的工作台不需要这种类型的材料
+                if ((tp_worktable[workbenches[i].type].raw_material & (1 << (robots[robotid].carrying_type))) == 0)
+                {
+                    continue;
+                }
+                //如果工作台已经有了这种原材料
+                if ((workbenches[i].raw_bits & (1 << (robots[robotid].carrying_type))) != 0)
+                {
+                    continue;
+                }
+                //如果有其它机器人奔向，本机器人不去
+                if (check_lock(0, robots[robotid].carrying_type, robotid, i))
+                {
+                    continue;
+                }
+                double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
+                if (min_dis > dis)  //寻找需要改材料的工作台中最近的
+                {
+                    min_dis = dis;                    //距离
+                    min_id = i;          //工作台编号
+                    robots[robotid].sell = 1;//这个机器人要卖东西了
+                }
+            }
+            if (min_id != -1) {  //加材料锁
+                lock(0, robots[robotid].carrying_type, robotid, min_id);
+                return min_id;
+            }
+            for (int i = 0;i < workbench_cnt;i++)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+            {
+                if (workbenches[i].type != 7 && workbenches[i].type != 6 && workbenches[i].type != 5 && workbenches[i].type != 4)
+                {
+                    continue;
+                }
+                //如果这种类型的工作台不需要这种类型的材料
+                if ((tp_worktable[workbenches[i].type].raw_material & (1 << (robots[robotid].carrying_type))) == 0)
+                {
+                    continue;
+                }
+                //如果工作台已经有了这种原材料
+                if ((workbenches[i].raw_bits & (1 << (robots[robotid].carrying_type))) != 0)
+                {
+                    continue;
+                }
+                //如果有其它机器人奔向，本机器人不去
+                if (check_lock(0, robots[robotid].carrying_type, robotid, i))
+                {
+                    continue;
+                }
+                double dis = my_distance(robots[robotid].pos, workbenches[i].pos);
+                if (min_dis > dis)  //寻找需要改材料的工作台中最近的
+                {
+                    min_dis = dis;                    //距离
+                    min_id = i;          //工作台编号
+                    robots[robotid].sell = 1;//这个机器人要卖东西了
+                }
+            }
+            if (min_id != -1) {  //加材料锁
+                lock(0, robots[robotid].carrying_type, robotid, min_id);
+                return min_id;
+            }
+        }
+    }
     return min_id;
 }
 
@@ -667,31 +964,31 @@ int main() {
         //update_workbench();
         double lineSpeed = 3;
         double angleSpeed = 1.5;
-        double distance;
+        double distance=1.0;
 
 
         for (int robotId = 0; robotId < 4; robotId++) {
 
-            if((robots[robotId].sell==0) && (robots[robotId].buy==0)){
+            if ((robots[robotId].sell == 0) && (robots[robotId].buy == 0)) {
                 robots[robotId].table_id = best_fit(distance, robotId);  //只有当机器人需要进行购买或者出售的时候后才去fit
-                fprintf(stderr, "robotId=%d go to table=%d with type %d buy=%d  sell=%d\n",robotId, robots[robotId].table_id,workbenches[robots[robotId].table_id].type,robots[robotId].buy,robots[robotId].sell);
-                if(robots[robotId].table_id==-1 && robots[robotId].carrying_type != 0 && frameID %5000 ==0){
-                                    printf("destroy %d\n", robotId);
-                                    fprintf(stderr,"robots %d destroy WITH ERROR\n",robotId);   
+                //fprintf(stderr, "robotId=%d go to table=%d with type %d buy=%d  sell=%d\n", robotId, robots[robotId].table_id, workbenches[robots[robotId].table_id].type, robots[robotId].buy, robots[robotId].sell);
+                if (robots[robotId].table_id == -1 && robots[robotId].carrying_type != 0 && frameID % 5000 == 0) {
+                    printf("destroy %d\n", robotId);
+                    //fprintf(stderr, "robots %d destroy WITH ERROR\n", robotId);
                 }
 
             }
             //sleep(1);
 
 
-            if (abs(robots[robotId].before_pos.x-robots[robotId].pos.x)<0.005 && abs(robots[robotId].before_pos.y-robots[robotId].pos.y)<0.005 )
+            if (abs(robots[robotId].before_pos.x - robots[robotId].pos.x) < 0.005 && abs(robots[robotId].before_pos.y - robots[robotId].pos.y) < 0.005)
             {
                 //robots[robotId].destroy=1;
             }
-            
+
             if (robots[robotId].table_id != -1)
             {
-                workbenches[robots[robotId].table_id].lock = robotId+1;//锁
+                //workbenches[robots[robotId].table_id].lock = robotId+1;//锁
                 double move_distance = distance / (1.0 / 50);//线速度
                 double rotate_angle = cal_angle(robots[robotId].table_id, robotId) / (1.0 / 50);//加速度
                 if (move_distance > 6.0) {
@@ -700,47 +997,65 @@ int main() {
                 if (move_distance < -2.0) {
                     move_distance = -2.0;
                 }
-                if (rotate_angle > M_PI) {
-                    rotate_angle = M_PI;
+                if (rotate_angle > 3.14159265358979323846) {
+                    rotate_angle = 3.14159265358979323846;
                 }
-                if (rotate_angle < -1 * M_PI) {
-                    rotate_angle = -1 * M_PI;
+                if (rotate_angle < -1 * 3.14159265358979323846) {
+                    rotate_angle = -1 * 3.14159265358979323846;
                 }
                 printf("rotate %d %f\n", robotId, rotate_angle);
                 fflush(stdout);
                 //double random_variation = random_double(-3,0); // 可根据需要自定义范围
                 //double modified_move_distance = move_distance + random_variation;
 
-
-                if(abs(rotate_angle)>3)
-                    printf("forward %d 3\n", robotId);
-                else if(my_distance(robots[robotId].pos, workbenches[robots[robotId].table_id].pos)<1)
-                    printf("forward %d 1\n", robotId);
+                if (50 - robots[robotId].pos.y <= 1 && robots[robotId].facing_direction > 0) {
+                    printf("forward %d -2\n", robotId);
+                    fflush(stdout);
+                }
+                else if (robots[robotId].pos.y <= 1 && robots[robotId].facing_direction < 0) {
+                    printf("forward %d -2\n", robotId);
+                    fflush(stdout);
+                }
+                else if (robots[robotId].pos.x <= 1 && (robots[robotId].facing_direction > 3.14159265358979323846 / 2 || robots[robotId].facing_direction < -3.14159265358979323846 / 2)) {
+                    printf("forward %d -2\n", robotId);
+                    fflush(stdout);
+                }
+                else if (50 - robots[robotId].pos.x <= 1 && (robots[robotId].facing_direction < 3.14159265358979323846 / 2 && robots[robotId].facing_direction > -3.14159265358979323846 / 2)) {
+                    printf("forward %d -2\n", robotId);
+                    fflush(stdout);
+                }
+                else if (abs(rotate_angle) > 3)
+                    printf("forward %d 2\n", robotId);
+                //else if (my_distance(robots[robotId].pos, workbenches[robots[robotId].table_id].pos) < 1)
+                //    printf("forward %d 1\n", robotId);
                 else
                     printf("forward %d %f\n", robotId, move_distance);
                 //fprintf(stderr,"forward %d %f rotate %f\n", robotId, move_distance,rotate_angle);
                 fflush(stdout);
-                
-                if (robots[robotId].workbench_id == robots[robotId].table_id && robots[robotId].buy==1) {
-                printf("buy %d\n", robotId);
-                robots[robotId].buy=0;
-                workbenches[robots[robotId].table_id].lock =0;//解锁
-                fflush(stdout);
-                 }
-                else if(robots[robotId].destroy==1 && robots[robotId].sell==1){
-                    printf("destroy %d\n", robotId);
-                    fprintf(stderr,"robots %d destroy\n",robotId);
-                    robots[robotId].sell=0;
-                    robots[robotId].destroy=0;
-                    workbenches[robots[robotId].table_id].lock = 0;//解锁
+
+                if (robots[robotId].workbench_id == robots[robotId].table_id && robots[robotId].buy == 1) {
+                    printf("buy %d\n", robotId);
+                    robots[robotId].buy = 0;
+                    unlock(1, tp_worktable[workbenches[robots[robotId].table_id].type].produce, robotId, robots[robotId].table_id);//解产品锁
+                    //workbenches[robots[robotId].table_id].lock =0;//解锁
                     fflush(stdout);
                 }
-                else if (robots[robotId].workbench_id == robots[robotId].table_id && robots[robotId].sell==1) {
-                printf("sell %d\n", robotId);
-                robots[robotId].sell=0;
-                workbenches[robots[robotId].table_id].lock = 0;//解锁
-                fflush(stdout);
-                 }
+                else if (robots[robotId].destroy == 1 && robots[robotId].sell == 1) {
+                    printf("destroy %d\n", robotId);
+                    //fprintf(stderr, "robots %d destroy\n", robotId);
+                    robots[robotId].sell = 0;
+                    robots[robotId].destroy = 0;
+                    //workbenches[robots[robotId].table_id].lock = 0;//解锁
+                    unlock(0, robots[robotId].carrying_type, robotId, robots[robotId].table_id);//解材料锁
+                    fflush(stdout);
+                }
+                else if (robots[robotId].workbench_id == robots[robotId].table_id && robots[robotId].sell == 1) {
+                    printf("sell %d\n", robotId);
+                    robots[robotId].sell = 0;
+                    //workbenches[robots[robotId].table_id].lock = 0;//解锁
+                    unlock(0, robots[robotId].carrying_type, robotId, robots[robotId].table_id);//解材料锁
+                    fflush(stdout);
+                }
             }
 
 
