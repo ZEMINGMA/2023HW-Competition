@@ -667,7 +667,7 @@ int main() {
         //update_workbench();
         double lineSpeed = 3;
         double angleSpeed = 1.5;
-        double distance;
+        double distance=1.0;
 
 
         for (int robotId = 0; robotId < 4; robotId++) {
@@ -744,7 +744,7 @@ int main() {
             }
 
 
-
+       sleep(100);
 
 
         }
