@@ -147,18 +147,14 @@ void init()//初始化每种类型的工作台的信息
 
 //载入地图
 void readmap() {
-    for (int i = 1;i <= 100;++i)
-    {
-        for (int j = 1;j <= 100;++j)
-        {
-            cin >> mp[i][j];
-        }
-    }
-    string ok;
-    cin >> ok;
-    cout << ok << endl;
-    fflush(stdout);
-    assert(ok == "OK"); // 最后一行必须是OK
+        for (int i = 1;i <= 100;++i)
+            for (int j = 1;j <= 100;++j)
+                cin >> mp[i][j];
+        string ok;
+        cin >> ok;
+        cout << ok << endl;
+        fflush(stdout);
+        assert(ok == "OK"); // 最后一行必须是OK
 }
 
 double my_distance(Point p1, Point p2)//计算两个点之间的坐标
