@@ -47,8 +47,10 @@ struct Robot {
     Point linear_speed; // 线速度，由二维向量描述线速度，单位为米/秒，每秒有50帧
     double facing_direction; // 朝向，表示机器人的朝向，范围为 [-π,π]，方向示例：0 表示右方向，π/2 表示上方向，-π/2 表示下方向
     Point pos; // 坐标
+    Point before_pos;
     int buy;//准备购买
     int sell;//准备出售
+    int destroy;//
     int table_id;//前往的工作台ID
 };
 
@@ -63,6 +65,7 @@ Point read_point() {
 double const pi = 3.1415926535;
 char mp[105][105];
 int workbench_cnt; // 场上工作台的数量
+int frameID, money;
 type_worktable_struct tp_worktable[10];
 Workbench workbenches[55];//为了通过工作台ID访问工作台
 Robot robots[4];//为了通过机器人ID访问机器人
@@ -80,8 +83,13 @@ void read_frame_info(int& money) {
         cin >> robots[i].workbench_id >> robots[i].carrying_type >> robots[i].time_value_coef >> robots[i].collision_value_coef;
         // 读入机器人的携带物品的时间价值系数和碰撞价值系数
         // 读入机器人的角速度、线速度、朝向和位置
-        cin >> robots[i].angular_speed >> robots[i].linear_speed.x >> robots[i].linear_speed.y
-            >> robots[i].facing_direction >> robots[i].pos.x >> robots[i].pos.y;
+        
+        if (frameID % 500 == 0) {
+            robots[i].before_pos.x = robots[i].pos.x;
+            robots[i].before_pos.y = robots[i].pos.y;
+        }
+
+        cin >> robots[i].angular_speed >> robots[i].linear_speed.x >> robots[i].linear_speed.y>> robots[i].facing_direction >> robots[i].pos.x >> robots[i].pos.y;
     }
     // 读入一行字符串，判断是否输入完毕
     string ok;
@@ -542,9 +550,6 @@ int best_fit(double& min_dis, int robotid)//寻找当前最适合机器人前往
     return min_id;
 }
 
-
-
-
 double cal_angle(int table_id, int robot_id) {
     double dx = workbenches[table_id].pos.x - robots[robot_id].pos.x;
     double dy = workbenches[table_id].pos.y - robots[robot_id].pos.y;
@@ -557,7 +562,6 @@ double cal_angle(int table_id, int robot_id) {
 int main() {
     init();
     readmap();
-    int frameID, money;
     while (scanf("%d", &frameID) != EOF) {
         read_frame_info(money);
         printf("%d\n", frameID);
@@ -576,6 +580,12 @@ int main() {
             }
             //sleep(1);
 
+
+            if (robots[robotId].before_pos.x==robots[robotId].pos.x||robots[robotId].before_pos.y==robots[robotId].pos.y)
+            {
+                robots[robotId].destroy=1;
+            }
+            
             if (robots[robotId].table_id != -1)
             {
                 workbenches[robots[robotId].table_id].lock = robotId+1;//锁
@@ -597,13 +607,21 @@ int main() {
                 fflush(stdout);
                 printf("forward %d %f\n", robotId, move_distance);
                 fflush(stdout);
-
+                
                 if (robots[robotId].workbench_id == robots[robotId].table_id && robots[robotId].buy==1) {
                 printf("buy %d\n", robotId);
                 robots[robotId].buy=0;
                 workbenches[robots[robotId].table_id].lock =0;//解锁
                 fflush(stdout);
                  }
+                else if(robots[robotId].destroy==1 && robots[robotId].sell==1){
+                    printf("destroy %d\n", robotId);
+                    fprintf(stderr,"robots %d destroy",robotId);
+                    robots[robotId].sell=0;
+                    robots[robotId].destroy=0;
+                    workbenches[robots[robotId].table_id].lock = 0;//解锁
+                    fflush(stdout);
+                }
                 else if (robots[robotId].workbench_id == robots[robotId].table_id && robots[robotId].sell==1) {
                 printf("sell %d\n", robotId);
                 robots[robotId].sell=0;
