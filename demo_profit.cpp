@@ -8,163 +8,74 @@
 #include <cstring>
 #include <list>
 #include <cstdio>
-//#include <windows.h>
 #include <string>
-#include <unistd.h>
 #include <random>
 #include <ctime>
+#include <unistd.h>
+#include <thread>
+#include <chrono>
 
-
-
+//#include <windows.h>
 using namespace std;
 
 struct type_worktable_struct
-        {
-    int raw_material;//Ã¿ÖÖÀàĞÍµÄ¹¤×÷Ì¨ĞèÒªÔ­²ÄÁÏraw_material
-    int period;//ĞèÒªÖÜÆÚperiod
-    int produce;//Éú²ú³öÁËproduce
-        };
+{
+    int raw_material;//æ¯ç§ç±»å‹çš„å·¥ä½œå°éœ€è¦åŸææ–™raw_material
+    int period;//éœ€è¦å‘¨æœŸperiod
+    int produce;//ç”Ÿäº§å‡ºäº†produce
+};
+
 struct Point
-        {
+{
     double x, y;
-        };
+};
 
-// ¹¤×÷Ì¨
+// å·¥ä½œå°
 struct Workbench {
-    int type; // ¹¤×÷Ì¨ÀàĞÍ
-    Point pos; // ×ø±ê
-    int remaining_time; // Ê£ÓàÉú²úÊ±¼ä£¨Ö¡Êı£©
-    int raw_bits; // Ô­²ÄÁÏ¸ñ×´Ì¬£¬¶ş½øÖÆÎ»±íÃèÊö£¬ÀıÈç 48£¨110000£©±íÊ¾ÓµÓĞÎïÆ· 4 ºÍ 5
-    int product_bit; // ²úÆ·¸ñ×´Ì¬£¬0 ±íÊ¾ÎŞ£¬1 ±íÊ¾ÓĞ
-    int product_lock;//µ±Ç°²úÆ·ÊÇ·ñÓĞ»úÆ÷ÈË±¼Ïò
-    int raw_lock;//µ±Ç°²ÄÁÏ¸ñÊÇ·ñÓĞ»úÆ÷ÈË±¼Ïò
+    int type; // å·¥ä½œå°ç±»å‹
+    Point pos; // åæ ‡
+    int remaining_time; // å‰©ä½™ç”Ÿäº§æ—¶é—´ï¼ˆå¸§æ•°ï¼‰
+    int material_bits; // åŸææ–™æ ¼çŠ¶æ€ï¼ŒäºŒè¿›åˆ¶ä½è¡¨æè¿°ï¼Œä¾‹å¦‚ 48ï¼ˆ110000ï¼‰è¡¨ç¤ºæ‹¥æœ‰ç‰©å“ 4 å’Œ 5
+    int product_bit; // äº§å“æ ¼çŠ¶æ€ï¼Œ0 è¡¨ç¤ºæ— ï¼Œ1 è¡¨ç¤ºæœ‰
+    int product_lock;//å½“å‰äº§å“æ˜¯å¦æœ‰æœºå™¨äººå¥”å‘
+    int material_lock;//å½“å‰ææ–™æ ¼æ˜¯å¦æœ‰æœºå™¨äººå¥”å‘
+    int material_count;//ç»Ÿè®¡ææ–™æ ¼æ»¡äº†å¤šå°‘ä¸ª
 };
 
-// »úÆ÷ÈË
+// æœºå™¨äºº
 struct Robot {
-    int workbench_id; // Ëù´¦¹¤×÷Ì¨ ID£¬-1 ±íÊ¾µ±Ç°Ã»ÓĞ´¦ÓÚÈÎºÎ¹¤×÷Ì¨¸½½ü£¬[0,¹¤×÷Ì¨×ÜÊı-1]±íÊ¾Ä³¹¤×÷Ì¨µÄÏÂ±ê£¬´Ó0¿ªÊ¼£¬°´ÊäÈëË³Ğò¶¨¡£µ±Ç°»úÆ÷ÈËµÄËùÓĞ¹ºÂò¡¢³öÊÛĞĞÎª¾ùÕë¶Ô¸Ã¹¤×÷Ì¨½øĞĞ
-    int carrying_type; // Ğ¯´øÎïÆ·ÀàĞÍ£¬0 ±íÊ¾Î´Ğ¯´øÎïÆ·£¬1-7 ±íÊ¾¶ÔÓ¦ÎïÆ·
-    double time_value_coef; // Ê±¼ä¼ÛÖµÏµÊı£¬Ğ¯´øÎïÆ·Ê±Îª [0.8,1] µÄ¸¡µãÊı£¬²»Ğ¯´øÎïÆ·Ê±Îª 0
-    double collision_value_coef; // Åö×²¼ÛÖµÏµÊı£¬Ğ¯´øÎïÆ·Ê±Îª [0.8,1] µÄ¸¡µãÊı£¬²»Ğ¯´øÎïÆ·Ê±Îª 0
-    double angular_speed; // ½ÇËÙ¶È£¬µ¥Î»Îª»¡¶È/Ãë£¬ÕıÊı±íÊ¾ÄæÊ±Õë£¬¸ºÊı±íÊ¾Ë³Ê±Õë
-    Point linear_speed; // ÏßËÙ¶È£¬ÓÉ¶şÎ¬ÏòÁ¿ÃèÊöÏßËÙ¶È£¬µ¥Î»ÎªÃ×/Ãë£¬Ã¿ÃëÓĞ50Ö¡
-    double facing_direction; // ³¯Ïò£¬±íÊ¾»úÆ÷ÈËµÄ³¯Ïò£¬·¶Î§Îª [-¦Ğ,¦Ğ]£¬·½ÏòÊ¾Àı£º0 ±íÊ¾ÓÒ·½Ïò£¬¦Ğ/2 ±íÊ¾ÉÏ·½Ïò£¬-¦Ğ/2 ±íÊ¾ÏÂ·½Ïò
-    Point pos; // ×ø±ê
-    Point before_pos;
-    int buy;//×¼±¸¹ºÂò
-    int sell;//×¼±¸³öÊÛ
+    int workbench_id; // æ‰€å¤„å·¥ä½œå° IDï¼Œ-1 è¡¨ç¤ºå½“å‰æ²¡æœ‰å¤„äºä»»ä½•å·¥ä½œå°é™„è¿‘ï¼Œ[0,å·¥ä½œå°æ€»æ•°-1]è¡¨ç¤ºæŸå·¥ä½œå°çš„ä¸‹æ ‡ï¼Œä»0å¼€å§‹ï¼ŒæŒ‰è¾“å…¥é¡ºåºå®šã€‚å½“å‰æœºå™¨äººçš„æ‰€æœ‰è´­ä¹°ã€å‡ºå”®è¡Œä¸ºå‡é’ˆå¯¹è¯¥å·¥ä½œå°è¿›è¡Œ
+    int carrying_type; // æºå¸¦ç‰©å“ç±»å‹ï¼Œ0 è¡¨ç¤ºæœªæºå¸¦ç‰©å“ï¼Œ1-7 è¡¨ç¤ºå¯¹åº”ç‰©å“
+    double time_value_coef; // æ—¶é—´ä»·å€¼ç³»æ•°ï¼Œæºå¸¦ç‰©å“æ—¶ä¸º [0.8,1] çš„æµ®ç‚¹æ•°ï¼Œä¸æºå¸¦ç‰©å“æ—¶ä¸º 0
+    double collision_value_coef; // ç¢°æ’ä»·å€¼ç³»æ•°ï¼Œæºå¸¦ç‰©å“æ—¶ä¸º [0.8,1] çš„æµ®ç‚¹æ•°ï¼Œä¸æºå¸¦ç‰©å“æ—¶ä¸º 0
+    double angular_speed; // è§’é€Ÿåº¦ï¼Œå•ä½ä¸ºå¼§åº¦/ç§’ï¼Œæ­£æ•°è¡¨ç¤ºé€†æ—¶é’ˆï¼Œè´Ÿæ•°è¡¨ç¤ºé¡ºæ—¶é’ˆ
+    Point linear_speed; // çº¿é€Ÿåº¦ï¼Œç”±äºŒç»´å‘é‡æè¿°çº¿é€Ÿåº¦ï¼Œå•ä½ä¸ºç±³/ç§’ï¼Œæ¯ç§’æœ‰50å¸§
+    double facing_direction; // æœå‘ï¼Œè¡¨ç¤ºæœºå™¨äººçš„æœå‘ï¼ŒèŒƒå›´ä¸º [-Ï€,Ï€]ï¼Œæ–¹å‘ç¤ºä¾‹ï¼š0 è¡¨ç¤ºå³æ–¹å‘ï¼ŒÏ€/2 è¡¨ç¤ºä¸Šæ–¹å‘ï¼Œ-Ï€/2 è¡¨ç¤ºä¸‹æ–¹å‘
+    Point pos; // åæ ‡
+    int buy;//å‡†å¤‡è´­ä¹°
+    int sell;//å‡†å¤‡å‡ºå”®
     int destroy;//
-    int table_id;//Ç°ÍùµÄ¹¤×÷Ì¨ID
+    int workbench_to_buy_id ;
+    int workbench_to_sell_id;
 };
 
-// ¶ÁÈ¡Ò»¸ö Point ÀàĞÍµÄ±äÁ¿
+//å…¨å±€å˜é‡å®šä¹‰éƒ¨åˆ†
+double const pi = 3.1415926535;
+char mp[105][105];
+int workbench_cnt; // åœºä¸Šå·¥ä½œå°çš„æ•°é‡
+int frameID, money;
+type_worktable_struct tp_worktable[10];
+Workbench workbenches[55];//ä¸ºäº†é€šè¿‡å·¥ä½œå°IDè®¿é—®å·¥ä½œå°
+Robot robots[4];//ä¸ºäº†é€šè¿‡æœºå™¨äººIDè®¿é—®æœºå™¨äºº
+
+// è¯»å–ä¸€ä¸ª Point ç±»å‹çš„å˜é‡
 Point read_point() {
     Point point;
     cin >> point.x >> point.y;
     return point;
 };
 
-//È«¾Ö±äÁ¿¶¨Òå²¿·Ö
-double const pi = 3.1415926535;
-char mp[105][105];
-int workbench_cnt; // ³¡ÉÏ¹¤×÷Ì¨µÄÊıÁ¿
-int frameID, money;
-type_worktable_struct tp_worktable[10];
-Workbench workbenches[55];//ÎªÁËÍ¨¹ı¹¤×÷Ì¨ID·ÃÎÊ¹¤×÷Ì¨
-Robot robots[4];//ÎªÁËÍ¨¹ı»úÆ÷ÈËID·ÃÎÊ»úÆ÷ÈË
-
-//µÚÒ»¸ö²ÎÊı£º0±íÊ¾Ô­²ÄÁÏ£¬1±íÊ¾²úÆ·¡£µÚ¶ş¸öÊÇ²úÆ·»òÔ­²ÄÁÏid
-void lock(int raw_or_product, int raw_or_product_id, int robotid, int workbenchid)//¼ÓËø
-{
-    if(workbenches[workbenchid].type==8 || workbenches[workbenchid].type==9 )
-        return ;
-    if (raw_or_product == 0)//Èç¹ûÊÇÔ­²ÄÁÏ
-        {
-        fprintf(stderr, "before lock raw_lock:%d,workbenchid:%d\n", workbenches[workbenchid].raw_lock, workbenchid);
-        workbenches[workbenchid].raw_lock |= 1 << raw_or_product_id;//²ÄÁÏËø°´Î»ÔËËã£¬ÏàÓ¦²ÄÁÏ¸ñÖÃ1
-        fprintf(stderr, "after lock raw_lock:%d,workbenchid:%d\n", workbenches[workbenchid].raw_lock,workbenchid);
-
-        //Sleep(100);
-        }
-    else//Èç¹ûÊÇ²úÆ·
-    {
-        workbenches[workbenchid].product_lock = robotid + 1;//²úÆ·ËøÓÃ»úÆ÷ÈË±àºÅ
-    }
-}
-
-//µÚÒ»¸ö²ÎÊı£º0±íÊ¾Ô­²ÄÁÏ£¬1±íÊ¾²úÆ·¡£µÚ¶ş¸öÊÇ²úÆ·»òÔ­²ÄÁÏid
-void unlock(int raw_or_product, int raw_or_product_id, int robotid, int workbenchid)
-{
-    if(workbenches[workbenchid].type==8 || workbenches[workbenchid].type==9 )
-        return ;
-    if (raw_or_product == 0)//Èç¹ûÊÇÔ­²ÄÁÏ
-        {
-        fprintf(stderr, "before unlock raw_lock:%d,workbenchid:%d\n", workbenches[workbenchid].raw_lock, workbenchid);
-        workbenches[workbenchid].raw_lock &= ~(1 << raw_or_product_id);//½â²ÄÁÏËø£¬ÏàÓ¦²ÄÁÏ¸ñÖÃ1
-        fprintf(stderr, "after unlock raw_lock:%d,workbenchid:%d\n", workbenches[workbenchid].raw_lock, workbenchid);
-        workbenches[workbenchid].raw_bits |= 1 << robots[robotid].carrying_type;//Õâ¸öÊÇÔÚsellµÄÊ±ºò£¬·ÀÖ¹mainÑ­»·ÖĞÏÂÒ»¸ö»úÆ÷ÈËÔÚÕâÒ»Ö¡Ã»ÓĞµÃµ½²ÄÁÏ¸ñÒÑ¾­±»×°ÂúµÄĞÅÏ¢
-        //Sleep(100);
-        }
-    else//Èç¹ûÊÇ²úÆ·
-    {
-        workbenches[workbenchid].product_lock = 0;//Çå¿Õ²úÆ·Ëø
-        workbenches[workbenchid].product_bit = 0;//Õâ¸öÊÇÔÚbuyµÄÊ±ºò£¬·ÀÖ¹mainÑ­»·ÖĞÏÂÒ»¸ö»úÆ÷ÈËÔÚÕâÒ»Ö¡Ã»ÓĞµÃµ½²ÄÁÏ¸ñÒÑ¾­±»×°ÂúµÄĞÅÏ¢
-    }
-}
-
-//µÚÒ»¸ö²ÎÊı£º0±íÊ¾Ô­²ÄÁÏ£¬1±íÊ¾²úÆ·¡£µÚ¶ş¸öÊÇ²úÆ·»òÔ­²ÄÁÏid
-int check_lock(int raw_or_product, int raw_or_product_id, int robotid, int workbenchid)//1±íÊ¾±»ËøÁË£¬0±íÊ¾Ã»ÓĞ±»Ëø
-{
-    if (raw_or_product == 0)//Èç¹ûÊÇÔ­²ÄÁÏ
-        {
-        if ((workbenches[workbenchid].raw_lock & (1 << raw_or_product_id)) != 0)//Èç¹û²ÄÁÏËøÏàÓ¦Î»Îª1
-            {
-            return 1;//±»ÆäËü»úÆ÷ÈËËøÁË
-            }
-        }
-    else//Èç¹ûÊÇ²úÆ·
-    {
-        if (workbenches[workbenchid].product_lock != 0 && workbenches[workbenchid].product_lock != robotid + 1)//Èç¹û²úÆ·Ëø±»Ëø£¬¶øÇÒ²»ÊÇ×Ô¼ºËøµÄ
-            {
-            return 1;//±»ÆäËü»úÆ÷ÈËËøÁË
-            }
-    }
-    return 0;//Ã»ÓĞ±»Ëø
-}
-
-// Éú³É·¶Î§Îª[min, max]µÄËæ»ú¸¡µãÊı
-double random_double(double min, double max) {
-    static std::mt19937 generator(std::time(0));
-    std::uniform_real_distribution<double> distribution(min, max);
-    return distribution(generator);
-}
-// ¶ÁÈ¡Ò»Ö¡µÄĞÅÏ¢
-void read_frame_info(int& money) {
-    cin >> money >> workbench_cnt;
-    for (int i = 0; i < workbench_cnt; i++) {
-        cin >> workbenches[i].type;
-        workbenches[i].pos = read_point();
-        cin >> workbenches[i].remaining_time >> workbenches[i].raw_bits >> workbenches[i].product_bit;
-    }
-    for (int i = 0; i < 4; i++) {
-        cin >> robots[i].workbench_id >> robots[i].carrying_type >> robots[i].time_value_coef >> robots[i].collision_value_coef;
-        // ¶ÁÈë»úÆ÷ÈËµÄĞ¯´øÎïÆ·µÄÊ±¼ä¼ÛÖµÏµÊıºÍÅö×²¼ÛÖµÏµÊı
-        // ¶ÁÈë»úÆ÷ÈËµÄ½ÇËÙ¶È¡¢ÏßËÙ¶È¡¢³¯ÏòºÍÎ»ÖÃ
-
-        if (frameID % 300 == 0) {
-            robots[i].before_pos.x = robots[i].pos.x;
-            robots[i].before_pos.y = robots[i].pos.y;
-        }
-
-        cin >> robots[i].angular_speed >> robots[i].linear_speed.x >> robots[i].linear_speed.y >> robots[i].facing_direction >> robots[i].pos.x >> robots[i].pos.y;
-    }
-    // ¶ÁÈëÒ»ĞĞ×Ö·û´®£¬ÅĞ¶ÏÊÇ·ñÊäÈëÍê±Ï
-    string ok;
-    cin >> ok;
-    assert(ok == "OK"); // ×îºóÒ»ĞĞ±ØĞëÊÇOK
-}
-
-void init()//³õÊ¼»¯Ã¿ÖÖÀàĞÍµÄ¹¤×÷Ì¨µÄĞÅÏ¢
+void init()//åˆå§‹åŒ–æ¯ç§ç±»å‹çš„å·¥ä½œå°çš„ä¿¡æ¯
 {
     tp_worktable[1].period = 50;
     tp_worktable[1].raw_material = 0;
@@ -201,54 +112,119 @@ void init()//³õÊ¼»¯Ã¿ÖÖÀàĞÍµÄ¹¤×÷Ì¨µÄĞÅÏ¢
     tp_worktable[9].period = 1;
     tp_worktable[9].raw_material = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);
     tp_worktable[9].produce = 0;
-
 }
 
-//ÔØÈëµØÍ¼
+//è½½å…¥åœ°å›¾
 void readmap() {
     for (int i = 1;i <= 100;++i)
         for (int j = 1;j <= 100;++j)
             cin >> mp[i][j];
-        string ok;
-        cin >> ok;
-        cout << ok << endl;
-        fflush(stdout);
-        assert(ok == "OK"); // ×îºóÒ»ĞĞ±ØĞëÊÇOK
+    string ok;
+    cin >> ok;
+    cout << ok << endl;
+    fflush(stdout);
+    assert(ok == "OK"); // æœ€åä¸€è¡Œå¿…é¡»æ˜¯OK
 }
 
-double my_distance(Point p1, Point p2)//¼ÆËãÁ½¸öµãÖ®¼äµÄ×ø±ê
+//ç¬¬ä¸€ä¸ªå‚æ•°ï¼š0è¡¨ç¤ºåŸææ–™ï¼Œ1è¡¨ç¤ºäº§å“ã€‚ç¬¬äºŒä¸ªæ˜¯äº§å“æˆ–åŸææ–™id
+void lock(int material_or_product, int material_or_product_id, int robotid, int workbenchid)//åŠ é”
+{
+    if (workbenches[workbenchid].type == 8 || workbenches[workbenchid].type == 9)
+        return;
+    if (material_or_product == 0)//å¦‚æœæ˜¯åŸææ–™
+        {
+            //fprintf(stderr, "before lock material_lock:%d,workbenchid:%d\n", workbenches[workbenchid].material_lock, workbenchid);
+            workbenches[workbenchid].material_lock |= 1 << material_or_product_id;//ææ–™é”æŒ‰ä½è¿ç®—ï¼Œç›¸åº”ææ–™æ ¼ç½®1
+            //fprintf(stderr, "after lock material_lock:%d,workbenchid:%d\n", workbenches[workbenchid].material_lock, workbenchid);
+        }
+    else//å¦‚æœæ˜¯äº§å“
+        {
+            workbenches[workbenchid].product_lock = robotid + 1;//äº§å“é”ç”¨æœºå™¨äººç¼–å·
+        }
+}
+
+//ç¬¬ä¸€ä¸ªå‚æ•°ï¼š0è¡¨ç¤ºåŸææ–™ï¼Œ1è¡¨ç¤ºäº§å“ã€‚ç¬¬äºŒä¸ªæ˜¯äº§å“æˆ–åŸææ–™id
+void unlock(int material_or_product, int material_or_product_id, int robotid, int workbenchid)
+{
+    if (workbenches[workbenchid].type == 8 || workbenches[workbenchid].type == 9)
+        return;
+    if (material_or_product == 0)//å¦‚æœæ˜¯åŸææ–™
+        {
+        fprintf(stderr, "before unlock material_lock:%d,workbenchid:%d\n", workbenches[workbenchid].material_lock, workbenchid);
+        workbenches[workbenchid].material_lock &= ~(1 << material_or_product_id);//è§£ææ–™é”ï¼Œç›¸åº”ææ–™æ ¼ç½®0
+        fprintf(stderr, "after unlock material_lock:%d,workbenchid:%d\n", workbenches[workbenchid].material_lock, workbenchid);
+        if(robotid!=-1)
+            workbenches[workbenchid].material_bits |= 1 << robots[robotid].carrying_type;//è¿™ä¸ªæ˜¯åœ¨sellçš„æ—¶å€™ï¼Œé˜²æ­¢mainå¾ªç¯ä¸­ä¸‹ä¸€ä¸ªæœºå™¨äººåœ¨è¿™ä¸€å¸§æ²¡æœ‰å¾—åˆ°ææ–™æ ¼å·²ç»è¢«è£…æ»¡çš„ä¿¡æ¯
+        }
+    else//å¦‚æœæ˜¯äº§å“
+    {
+        workbenches[workbenchid].product_lock = 0;//æ¸…ç©ºäº§å“é”
+        workbenches[workbenchid].product_bit = 0;//è¿™ä¸ªæ˜¯åœ¨buyçš„æ—¶å€™ï¼Œé˜²æ­¢mainå¾ªç¯ä¸­ä¸‹ä¸€ä¸ªæœºå™¨äººåœ¨è¿™ä¸€å¸§æ²¡æœ‰å¾—åˆ°ææ–™æ ¼å·²ç»è¢«è£…æ»¡çš„ä¿¡æ¯
+    }
+}
+
+//ç¬¬ä¸€ä¸ªå‚æ•°ï¼š0è¡¨ç¤ºåŸææ–™ï¼Œ1è¡¨ç¤ºäº§å“ã€‚ç¬¬äºŒä¸ªæ˜¯äº§å“æˆ–åŸææ–™id
+int check_lock(int material_or_product, int material_or_product_id, int robotid, int workbenchid)//1è¡¨ç¤ºè¢«é”äº†ï¼Œ0è¡¨ç¤ºæ²¡æœ‰è¢«é”
+{
+    if (workbenches[workbenchid].type == 8 || workbenches[workbenchid].type == 9)
+        return 0;
+    if (material_or_product == 0)//å¦‚æœæ˜¯åŸææ–™
+    {
+        if ((workbenches[workbenchid].material_lock & (1 << material_or_product_id)) != 0)//å¦‚æœææ–™é”ç›¸åº”ä½ä¸º1
+            {
+                    return 1;//è¢«å…¶å®ƒæœºå™¨äººé”äº†
+            }
+    }
+    else//å¦‚æœæ˜¯äº§å“
+    {
+        if (workbenches[workbenchid].product_lock != 0 && workbenches[workbenchid].product_lock != robotid + 1)//å¦‚æœäº§å“é”è¢«é”ï¼Œè€Œä¸”ä¸æ˜¯è‡ªå·±é”çš„
+            {
+                return 1;//è¢«å…¶å®ƒæœºå™¨äººé”äº†
+            }
+    }
+    return 0;//æ²¡æœ‰è¢«é”
+}
+
+// ç”ŸæˆèŒƒå›´ä¸º[min, max]çš„éšæœºæµ®ç‚¹æ•°
+double random_double(double min, double max) {
+    static std::mt19937 generator(std::time(0));
+    std::uniform_real_distribution<double> distribution(min, max);
+    return distribution(generator);
+}
+
+void init_material_count(int workbenchid)
+{
+    workbenches[workbenchid].material_count = 0;//å…ˆæ¸…ç©º
+    for (int i = 1;i <= 7;i++)//æ€»å…±7ç§ææ–™
+        {
+            if ((workbenches[workbenchid].material_bits & (1 << i))!=0)//å¦‚æœææ–™æ ¼æœ‰ææ–™
+                workbenches[workbenchid].material_count++;//è¢«å ç”¨çš„ææ–™æ ¼å¢åŠ æ•°é‡
+        }
+}
+
+// è¯»å–ä¸€å¸§çš„ä¿¡æ¯
+void read_frame_info(int& money) {
+    cin >> money >> workbench_cnt;
+    for (int i = 0; i < workbench_cnt; i++) {
+        cin >> workbenches[i].type;
+        workbenches[i].pos = read_point();
+        cin >> workbenches[i].remaining_time >> workbenches[i].material_bits >> workbenches[i].product_bit;
+        init_material_count(i);//å¯¹material_countè¿›è¡Œåˆå§‹åŒ–
+    }
+    for (int i = 0; i < 4; i++) {
+        cin >> robots[i].workbench_id >> robots[i].carrying_type >> robots[i].time_value_coef >> robots[i].collision_value_coef;        // è¯»å…¥æœºå™¨äººçš„æºå¸¦ç‰©å“çš„æ—¶é—´ä»·å€¼ç³»æ•°å’Œç¢°æ’ä»·å€¼ç³»æ•°
+        cin >> robots[i].angular_speed >> robots[i].linear_speed.x >> robots[i].linear_speed.y >> robots[i].facing_direction >> robots[i].pos.x >> robots[i].pos.y;
+        // è¯»å…¥æœºå™¨äººçš„è§’é€Ÿåº¦ã€çº¿é€Ÿåº¦ã€æœå‘å’Œä½ç½®
+    }
+    string ok;    // è¯»å…¥ä¸€è¡Œå­—ç¬¦ä¸²ï¼Œåˆ¤æ–­æ˜¯å¦è¾“å…¥å®Œæ¯•
+    cin >> ok;
+    assert(ok == "OK"); // æœ€åä¸€è¡Œå¿…é¡»æ˜¯OK
+}
+
+double my_distance(Point p1, Point p2)//è®¡ç®—ä¸¤ä¸ªç‚¹ä¹‹é—´çš„åæ ‡
 {
     return sqrt((p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y));
 }
-
-int best_fit(int robotId) {
-    double max_profit = -1;
-    int best_workbench_id = -1;
-
-    for (int i = 0; i < workbench_cnt; i++) {
-        // Ìø¹ıµ±Ç°¹¤×÷Ì¨ÒÑËø¶¨µÄÇé¿ö
-        if (workbenches[i].product_lock != 0) {
-            continue;
-        }
-
-        // ¼ÆËãÀûÈó
-        int product_price = tp_worktable[workbenches[i].type].produce * 100; // ¼ÙÉèÃ¿¸ö²úÆ·µÄ¼Û¸ñÊÇÆä±àºÅµÄ 100 ±¶
-        double distance_to_workbench = my_distance(robots[robotId].pos, workbenches[i].pos);
-        double time_to_reach_workbench = distance_to_workbench / 5.0; // ¼ÙÉè»úÆ÷ÈËÏßËÙ¶ÈÎª 3.0 Ã×/Ãë
-        double time_to_return_and_sell = time_to_reach_workbench; // ¼ÙÉè·µ»ØºÍ³öÊÛ²úÆ·ËùĞèÊ±¼äÓëµ½´ï¹¤×÷Ì¨ÏàÍ¬
-        double total_time = time_to_reach_workbench + time_to_return_and_sell;
-        double profit = product_price / total_time;
-
-        // ¸üĞÂ×î´óÀûÈóºÍ×î¼Ñ¹¤×÷Ì¨
-        if (profit > max_profit) {
-            max_profit = profit;
-            best_workbench_id = i;
-        }
-    }
-
-    return best_workbench_id;
-}
-
 
 double cal_angle(int table_id, int robot_id) {
     double dx = workbenches[table_id].pos.x - robots[robot_id].pos.x;
@@ -259,92 +235,175 @@ double cal_angle(int table_id, int robot_id) {
     return angle;
 }
 
+bool make_choice(int robotid) {
+    double max_profit = -1;
+    bool yes_or_no=false;
+        robots[robotid].workbench_to_buy_id=-1;
+        robots[robotid].workbench_to_sell_id=-1;
+        for (int i = 0;i < workbench_cnt;++i)//éå†æ‰€æœ‰å·¥ä½œå°(åªè¦æ›¾ç»æœ‰è¿‡æˆå“å°±ä¼šå‡ºç°åœ¨fullé‡Œ)
+        {
+            // è®¡ç®—åˆ©æ¶¦
+            int product_type = workbenches[i].type;
+            int product_price;
+            switch (product_type) {
+                case 1: product_price = 3000; break;
+                case 2: product_price = 3200; break;
+                case 3: product_price = 3400; break;
+                case 4: product_price = 7100; break;
+                case 5: product_price = 7800; break;
+                case 6: product_price = 8300; break;
+                case 7: product_price = 29000; break;
+                default: product_price = 0; break;
+            }
+
+            if (workbenches[i].product_bit == 0)//å¦‚æœæ²¡æœ‰ç”Ÿäº§å‡ºäº§å“
+                {continue;}
+
+            if (check_lock(1, tp_worktable[workbenches[i].type].produce, robotid, i))//å¦‚æœè¢«é”äº†continue
+                {continue;}
+            
+            int need = 0;//è¿™é‡ŒæŠŠneedèµ‹å€¼ä¸º0
+            for (int j = 0;j < workbench_cnt;++j)//éå†æ‰€æœ‰å·¥ä½œå°(åªè¦æ›¾ç»æœ‰è¿‡æˆå“å°±ä¼šå‡ºç°åœ¨fullé‡Œ)
+                {
+                //å¦‚æœè¿™ç§ç±»å‹çš„å·¥ä½œå°ä¸éœ€è¦è¿™ç§ç±»å‹çš„ææ–™
+                if ((tp_worktable[workbenches[j].type].raw_material & (1 << (tp_worktable[workbenches[i].type].produce))) == 0)
+                    {continue;}
+                //å¦‚æœå·¥ä½œå°å·²ç»æœ‰äº†è¿™ç§åŸææ–™
+                if ((workbenches[j].material_bits & (1 << (tp_worktable[workbenches[i].type].produce))) != 0)
+                    {continue;}
+                //å¦‚æœå·¥ä½œå°å·²ç»çš„è¿™ç§åŸææ–™å·²ç»è¢«æ­»é”äº†
+                if ((workbenches[j].material_lock & (1 << (tp_worktable[workbenches[i].type].produce))) != 0)
+                    {continue;}
+
+                need = 1;
+                double distance_to_workbench = my_distance(robots[robotid].pos, workbenches[i].pos);
+                double distance_to_sell= my_distance(workbenches[i].pos,workbenches[j].pos);
+                double total_time = (distance_to_workbench+distance_to_sell) / 5.5;
+                double profit = product_price / total_time;
+                    // æ›´æ–°æœ€å¤§åˆ©æ¶¦å’Œæœ€ä½³å·¥ä½œå°
+                    if (profit > max_profit) 
+                    {
+                        max_profit = profit;
+                        robots[robotid].workbench_to_buy_id=i;
+                        robots[robotid].workbench_to_sell_id=j;
+                    }
+                }
+            if (need == 0) continue;//ç»§ç»­å¯»æ‰¾ä¸‹ä¸€ä¸ªå·¥ä½œå°ï¼Œè€Œä¸æ˜¯breakä¸æ‰¾æ‰€æœ‰å·¥ä½œå°
+        }
+
+        if(max_profit!=-1)
+        {
+                lock(1, tp_worktable[workbenches[robots[robotid].workbench_to_buy_id].type].produce, robotid, robots[robotid].workbench_to_buy_id);//æœºå™¨äººæ‰¾åˆ°äº†ç”Ÿäº§å‡ºçš„äº§å“ï¼Œéœ€è¦åŠ äº§å“é”
+                lock(0, tp_worktable[workbenches[robots[robotid].workbench_to_buy_id].type].produce, robotid, robots[robotid].workbench_to_sell_id);//æœºå™¨äººæ‰¾åˆ°äº†ç©ºé—²çš„ææ–™æ ¼ï¼Œéœ€è¦ç»™è¿™ä¸ªææ–™æ ¼åŠ ææ–™é”
+                yes_or_no=true;
+        } 
+        return yes_or_no;
+}
+
 int main() {
     init();
     readmap();
-    while (scanf("%d", &frameID) != EOF) {
+    while (scanf("%d", &frameID) != EOF) 
+    {
         read_frame_info(money);
         printf("%d\n", frameID);
         fflush(stdout);
-        //update_workbench();
+
         double lineSpeed = 3;
         double angleSpeed = 1.5;
-        double distance=1.0;
+        double distance = 1.0;
 
 
         for (int robotId = 0; robotId < 4; robotId++) {
-
             if ((robots[robotId].sell == 0) && (robots[robotId].buy == 0)) {
-                robots[robotId].table_id = best_fit(robotId);  //Ö»ÓĞµ±»úÆ÷ÈËĞèÒª½øĞĞ¹ºÂò»òÕß³öÊÛµÄÊ±ºòºó²ÅÈ¥fit
-                //fprintf(stderr, "robotId=%d go to table=%d with type %d buy=%d  sell=%d\n", robotId, robots[robotId].table_id, workbenches[robots[robotId].table_id].type, robots[robotId].buy, robots[robotId].sell);
-                if (robots[robotId].table_id == -1 && robots[robotId].carrying_type != 0 && frameID % 5000 == 0) {
-                    printf("destroy %d\n", robotId);
-                    //fprintf(stderr, "robots %d destroy WITH ERROR\n", robotId);
-                }
+                    if(make_choice(robotId)){
+                    robots[robotId].buy=1;
+                    robots[robotId].sell=1;
+                    }
 
             }
-            //sleep(1);
 
-
-            if (abs(robots[robotId].before_pos.x - robots[robotId].pos.x) < 0.005 && abs(robots[robotId].before_pos.y - robots[robotId].pos.y) < 0.005)
+            if(robots[robotId].buy==1)
             {
-                //robots[robotId].destroy=1;
-            }
+                double move_distance = distance / (1.0 / 50);//çº¿é€Ÿåº¦
+                double rotate_angle = cal_angle(robots[robotId].workbench_to_buy_id, robotId) / (1.0 / 50);//åŠ é€Ÿåº¦
 
-            if (robots[robotId].table_id != -1)
-            {
-                //workbenches[robots[robotId].table_id].lock = robotId+1;//Ëø
-                double move_distance = distance / (1.0 / 50);//ÏßËÙ¶È
-                double rotate_angle = cal_angle(robots[robotId].table_id, robotId) / (1.0 / 50);//¼ÓËÙ¶È
                 if (move_distance > 6.0) {
                     move_distance = 6.0;
                 }
                 if (move_distance < -2.0) {
                     move_distance = -2.0;
                 }
-                if (rotate_angle > 3.14159265358979323846) {//M_PI²»¼æÈİ£¬Êı×Ö¼æÈİ
-                    rotate_angle = 3.14159265358979323846;
+                if (rotate_angle > pi) {//M_PIä¸å…¼å®¹ï¼Œæ•°å­—å…¼å®¹
+                    rotate_angle = pi;
                 }
-                if (rotate_angle < -1 * 3.14159265358979323846) {
-                    rotate_angle = -1 * 3.14159265358979323846;
+                if (rotate_angle < -1 * pi) {
+                    rotate_angle = -1 * pi;
                 }
+
                 printf("rotate %d %f\n", robotId, rotate_angle);
                 fflush(stdout);
-                double random_distance=4+random_double(-0.8,0.8);
+                double random_distance = 5 + random_double(-0.8, 0.8);
                 if (abs(rotate_angle) > 3)
-                    printf("forward %d %f\n", robotId,random_distance);//¸ÄÕâ¸ö¿ÉÒÔĞŞ¸Ä×ªÈ¦È¦µÄ´óĞ¡£¬¿ÉÄÜ¿ÉÒÔ³öÈ¥
-                    else if (my_distance(robots[robotId].pos, workbenches[robots[robotId].table_id].pos) < 1)
+                        printf("forward %d %f\n", robotId, random_distance);//æ”¹è¿™ä¸ªå¯ä»¥ä¿®æ”¹è½¬åœˆåœˆçš„å¤§å°ï¼Œå¯èƒ½å¯ä»¥å‡ºå»
+                else if (my_distance(robots[robotId].pos, workbenches[robots[robotId].workbench_to_buy_id].pos) < 1)
                         printf("forward %d 2\n", robotId);
-                    else
-                        printf("forward %d %f\n", robotId, move_distance);
-                    //fprintf(stderr,"forward %d %f rotate %f\n", robotId, move_distance,rotate_angle);
-                    fflush(stdout);
+                else
+                        printf("forward %d %f\n", robotId, move_distance);   
+                fflush(stdout);
 
-                    if (robots[robotId].workbench_id == robots[robotId].table_id && robots[robotId].buy == 1) {
+                if (robots[robotId].workbench_id == robots[robotId].workbench_to_buy_id && robots[robotId].buy == 1) {
                         printf("buy %d\n", robotId);
                         robots[robotId].buy = 0;
-                        unlock(1, tp_worktable[workbenches[robots[robotId].table_id].type].produce, robotId, robots[robotId].table_id);//½â²úÆ·Ëø
-                        //workbenches[robots[robotId].table_id].lock =0;//½âËø
+                        unlock(1, tp_worktable[workbenches[robots[robotId].workbench_to_buy_id].type].produce, robotId, robots[robotId].workbench_to_buy_id);//è§£äº§å“é”
                         fflush(stdout);
                     }
-                    else if (robots[robotId].destroy == 1 && robots[robotId].sell == 1) {
-                        printf("destroy %d\n", robotId);
-                        //fprintf(stderr, "robots %d destroy\n", robotId);
-                        robots[robotId].sell = 0;
-                        robots[robotId].destroy = 0;
-                        //workbenches[robots[robotId].table_id].lock = 0;//½âËø
-                        unlock(0, robots[robotId].carrying_type, robotId, robots[robotId].table_id);//½â²ÄÁÏËø
-                        fflush(stdout);
-                    }
-                    else if (robots[robotId].workbench_id == robots[robotId].table_id && robots[robotId].sell == 1) {
+            }
+
+            else if(robots[robotId].sell==1)
+            {
+                double move_distance = distance / (1.0 / 50);//çº¿é€Ÿåº¦
+                double rotate_angle = cal_angle(robots[robotId].workbench_to_sell_id, robotId) / (1.0 / 50);//åŠ é€Ÿåº¦
+
+                if (move_distance > 6.0) {
+                    move_distance = 6.0;
+                }
+                if (move_distance < -2.0) {
+                    move_distance = -2.0;
+                }
+                if (rotate_angle > pi) {//M_PIä¸å…¼å®¹ï¼Œæ•°å­—å…¼å®¹
+                    rotate_angle = pi;
+                }
+                if (rotate_angle < -1 * pi) {
+                    rotate_angle = -1 * pi;
+                }
+
+                printf("rotate %d %f\n", robotId, rotate_angle);
+                fflush(stdout);
+                double random_distance = 2 + random_double(-0.8, 0.8);
+                if (abs(rotate_angle) > 3)
+                        printf("forward %d %f\n", robotId, random_distance);//æ”¹è¿™ä¸ªå¯ä»¥ä¿®æ”¹è½¬åœˆåœˆçš„å¤§å°ï¼Œå¯èƒ½å¯ä»¥å‡ºå»
+                //else if (my_distance(robots[robotId].pos, workbenches[robots[robotId].workbench_to_sell_id].pos) < 1)
+                  //      printf("forward %d 2\n", robotId);
+                else
+                        printf("forward %d %f\n", robotId, move_distance);   
+                fflush(stdout);
+
+                if (robots[robotId].workbench_id == robots[robotId].workbench_to_sell_id && robots[robotId].sell == 1) {
                         printf("sell %d\n", robotId);
                         robots[robotId].sell = 0;
-                        //workbenches[robots[robotId].table_id].lock = 0;//½âËø
-                        unlock(0, robots[robotId].carrying_type, robotId, robots[robotId].table_id);//½â²ÄÁÏËø
+                        workbenches[robots[robotId].workbench_to_sell_id].material_count++;  //åŸææ–™å¢åŠ 
+
+                        //std::thread([robotId]() {
+                          //  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+                        unlock(0, robots[robotId].carrying_type, robotId, robots[robotId].workbench_to_sell_id); // è§£ææ–™é”
+                        //}).detach();
                         fflush(stdout);
                     }
             }
         }
+
+        
         printf("OK\n");
         fflush(stdout);
     }
