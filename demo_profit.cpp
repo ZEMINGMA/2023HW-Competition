@@ -278,7 +278,7 @@ bool make_choice(int robotid) {
                 need = 1;
                 double distance_to_workbench = my_distance(robots[robotid].pos, workbenches[i].pos);
                 double distance_to_sell= my_distance(workbenches[i].pos,workbenches[j].pos);
-                double total_time = (distance_to_workbench+distance_to_sell) / 5.5;
+                double total_time = (distance_to_workbench+distance_to_sell) / 5;
                 double profit = product_price / total_time;
                     // 更新最大利润和最佳工作台
                     if (profit > max_profit) 
@@ -343,11 +343,11 @@ int main() {
 
                 printf("rotate %d %f\n", robotId, rotate_angle);
                 fflush(stdout);
-                double random_distance = 5 + random_double(-0.8, 0.8);
-                if (abs(rotate_angle) > 3)
+                double random_distance = 2 + random_double(-0.8, 0.4);
+                if (abs(rotate_angle) > 3 && my_distance(robots[robotId].pos, workbenches[robots[robotId].workbench_to_buy_id].pos)<7.5)
                         printf("forward %d %f\n", robotId, random_distance);//改这个可以修改转圈圈的大小，可能可以出去
-                else if (my_distance(robots[robotId].pos, workbenches[robots[robotId].workbench_to_buy_id].pos) < 1)
-                        printf("forward %d 2\n", robotId);
+                //else if (my_distance(robots[robotId].pos, workbenches[robots[robotId].workbench_to_buy_id].pos) < 1)
+                  //      printf("forward %d 2\n", robotId);
                 else
                         printf("forward %d %f\n", robotId, move_distance);   
                 fflush(stdout);
@@ -380,8 +380,8 @@ int main() {
 
                 printf("rotate %d %f\n", robotId, rotate_angle);
                 fflush(stdout);
-                double random_distance = 2 + random_double(-0.8, 0.8);
-                if (abs(rotate_angle) > 3)
+                double random_distance = 2 + random_double(-0.8,0.4);
+                if (abs(rotate_angle) > 3.14 && my_distance(robots[robotId].pos, workbenches[robots[robotId].workbench_to_sell_id].pos)<7.5)
                         printf("forward %d %f\n", robotId, random_distance);//改这个可以修改转圈圈的大小，可能可以出去
                 //else if (my_distance(robots[robotId].pos, workbenches[robots[robotId].workbench_to_sell_id].pos) < 1)
                   //      printf("forward %d 2\n", robotId);
