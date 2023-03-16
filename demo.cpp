@@ -484,8 +484,9 @@ int main() {
                 }
                 printf("rotate %d %f\n", robotId, rotate_angle);
                 fflush(stdout);
+                double random_distance=4+random_double(-0.8,0.8);
                 if (abs(rotate_angle) > 3)
-                    printf("forward %d 4\n", robotId);//改这个可以修改转圈圈的大小，可能可以出去
+                    printf("forward %d %f\n", robotId,random_distance);//改这个可以修改转圈圈的大小，可能可以出去
                     else if (my_distance(robots[robotId].pos, workbenches[robots[robotId].table_id].pos) < 1)
                         printf("forward %d 2\n", robotId);
                     else
