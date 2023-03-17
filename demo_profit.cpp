@@ -235,6 +235,15 @@ double cal_angle(int table_id, int robot_id) {
     return angle;
 }
 
+double cal_time_value_coef(double holding_time,double maxX,double minRate )//持有时间 最大帧数 最小比例
+{
+    holding_time = holding_time *50;
+    if (holding_time >= maxX)
+        {return minRate;}
+    double a1 = 1 - sqrt(1 - (1 - holding_time / maxX) * (1 - holding_time / maxX));
+    return a1 * (1 - minRate) + minRate;
+}
+
 bool make_choice(int robotid) {
     double max_profit = -1;
     bool yes_or_no=false;
@@ -245,15 +254,16 @@ bool make_choice(int robotid) {
             // 计算利润
             int product_type = workbenches[i].type;
             int product_price;
+            int purchase_price;
             switch (product_type) {
-                case 1: product_price = 3000; break;
-                case 2: product_price = 3200; break;
-                case 3: product_price = 3400; break;
-                case 4: product_price = 7100; break;
-                case 5: product_price = 7800; break;
-                case 6: product_price = 8300; break;
-                case 7: product_price = 29000; break;
-                default: product_price = 0; break;
+                case 1:purchase_price=3000; product_price = 6000; break;
+                case 2:purchase_price=4400; product_price = 7600; break;
+                case 3:purchase_price=5800; product_price = 9200; break;
+                case 4:purchase_price=15400; product_price = 22500; break;
+                case 5:purchase_price=17200; product_price = 25000; break;
+                case 6:purchase_price=19200; product_price = 27500; break;
+                case 7:purchase_price=76000; product_price = 105000; break;
+                default:purchase_price=0; product_price = 0; break;
             }
 
             if (workbenches[i].product_bit == 0)//如果没有生产出产品
@@ -276,10 +286,11 @@ bool make_choice(int robotid) {
                     {continue;}
 
                 need = 1;
-                double distance_to_workbench = my_distance(robots[robotid].pos, workbenches[i].pos);
-                double distance_to_sell= my_distance(workbenches[i].pos,workbenches[j].pos);
-                double total_time = (distance_to_workbench+distance_to_sell) / 4.5;
-                double profit = product_price / total_time;
+                double to_buy_time = my_distance(robots[robotid].pos, workbenches[i].pos)/5.5;
+                double to_sell_time= my_distance(workbenches[i].pos,workbenches[j].pos)/4.5;
+                double total_time = to_buy_time + to_sell_time;
+                product_price=product_price*cal_time_value_coef(to_sell_time,9000,0.8)-purchase_price;
+                double profit = product_price / total_time ;
                     // 更新最大利润和最佳工作台
                     if (profit > max_profit) 
                     {
