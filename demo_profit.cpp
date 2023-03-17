@@ -317,8 +317,8 @@ bool make_choice(int robotid) {
 
 bool is_collision_risk(int robot_id) {
     bool risk=false;
-    double predicted_x = robots[robot_id].pos.x + robots[robot_id].linear_speed.x * time_step*20;
-    double predicted_y = robots[robot_id].pos.y + robots[robot_id].linear_speed.y * time_step*20;
+    double predicted_x = robots[robot_id].pos.x + robots[robot_id].linear_speed.x * time_step*10;
+    double predicted_y = robots[robot_id].pos.y + robots[robot_id].linear_speed.y * time_step*10;
     risk=(predicted_x < 1 || predicted_x > map_width-1 || predicted_y < 1 || predicted_y > map_height-1);
 
     if (risk)
@@ -352,9 +352,9 @@ void give_command(int robotId,bool collision_risk){
                 fflush(stdout);
                 
                 if (abs(angleSpeed) > 3 && collision_risk)
-                    printf("forward %d -2\n", robotId);
+                    printf("forward %d -0.5\n", robotId);
                 else if (collision_risk)
-                        printf("forward %d 2\n", robotId);
+                        printf("forward %d 3\n", robotId);
                 else
                         printf("forward %d %f\n", robotId, lineSpeed);   
                 fflush(stdout);
@@ -385,9 +385,9 @@ void give_command(int robotId,bool collision_risk){
                 fflush(stdout);
 
                 if (abs(angleSpeed) > 3 && collision_risk)
-                    printf("forward %d -2\n", robotId);
+                    printf("forward %d -0.5\n", robotId);
                 else if (collision_risk)
-                        printf("forward %d 2\n", robotId);
+                        printf("forward %d 3\n", robotId);
                 else
                         printf("forward %d %f\n", robotId, lineSpeed);   
                 fflush(stdout);
