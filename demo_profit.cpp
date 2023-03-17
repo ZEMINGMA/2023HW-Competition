@@ -60,7 +60,10 @@ struct Robot {
 };
 
 //全局变量定义部分
-double const pi = 3.1415926535;
+const double pi = 3.1415926535;
+const double map_width = 50.0;
+const double map_height = 50.0;
+const double time_step = 1.0 / 50;
 char mp[105][105];
 int workbench_cnt; // 场上工作台的数量
 int frameID, money;
@@ -311,56 +314,49 @@ bool make_choice(int robotid) {
         return yes_or_no;
 }
 
-int main() {
-    init();
-    readmap();
-    while (scanf("%d", &frameID) != EOF) 
-    {
-        read_frame_info(money);
-        printf("%d\n", frameID);
-        fflush(stdout);
 
+bool is_collision_risk(int robot_id) {
+    bool risk=false;
+    double predicted_x = robots[robot_id].pos.x + robots[robot_id].linear_speed.x * time_step*20;
+    double predicted_y = robots[robot_id].pos.y + robots[robot_id].linear_speed.y * time_step*20;
+    risk=(predicted_x < 1 || predicted_x > map_width-1 || predicted_y < 1 || predicted_y > map_height-1);
+
+    if (risk)
+    {
+       fprintf(stderr,"risk!!!!\n");
+    }
+      return risk;
+}
+
+
+void give_command(int robotId,bool collision_risk){
         double lineSpeed = 3;
         double angleSpeed = 1.5;
         double distance = 1.0;
-
-
-        for (int robotId = 0; robotId < 4; robotId++) {
-            if ((robots[robotId].sell == 0) && (robots[robotId].buy == 0)) {
-                    if(make_choice(robotId)){
-                    robots[robotId].buy=1;
-                    robots[robotId].sell=1;
-                    }
-
-            }
-
+        double random_distance = 2 + random_double(-0.8, 0.4);
             if(robots[robotId].buy==1)
             {
-                double move_distance = distance / (1.0 / 50);//线速度
-                double rotate_angle = cal_angle(robots[robotId].workbench_to_buy_id, robotId) / (1.0 / 50);//加速度
+                double lineSpeed = distance / time_step;//线速度
+                double angleSpeed = cal_angle(robots[robotId].workbench_to_buy_id, robotId) / time_step;//加速度
 
-                if (move_distance > 6.0) {
-                    move_distance = 6.0;
-                }
-                if (move_distance < -2.0) {
-                    move_distance = -2.0;
-                }
-                if (rotate_angle > pi) {//M_PI不兼容，数字兼容
-                    rotate_angle = pi;
-                }
-                if (rotate_angle < -1 * pi) {
-                    rotate_angle = -1 * pi;
-                }
+                if (lineSpeed > 6.0)
+                            {lineSpeed = 6.0;}
+                if (lineSpeed < -2.0) 
+                            {lineSpeed = -2.0;}
+                if (angleSpeed > pi) 
+                            {angleSpeed = pi;}
+                if (angleSpeed < -1 * pi) 
+                            {angleSpeed = -1 * pi;}
 
-                printf("rotate %d %f\n", robotId, rotate_angle);
+                printf("rotate %d %f\n", robotId, angleSpeed);
                 fflush(stdout);
-                double random_distance = 2 + random_double(-0.8, 0.4);
-                if (abs(rotate_angle) > 3 && my_distance(robots[robotId].pos, workbenches[robots[robotId].workbench_to_buy_id].pos)<5.5)
-                        printf("forward %d %f\n", robotId, random_distance);//改这个可以修改转圈圈的大小，可能可以出去
-                else if (my_distance(robots[robotId].pos, workbenches[robots[robotId].workbench_to_buy_id].pos) < 0.5)
+                
+                if (abs(angleSpeed) > 3 && collision_risk)
+                    printf("forward %d -2\n", robotId);
+                else if (collision_risk)
                         printf("forward %d 2\n", robotId);
                 else
-                        printf("forward %d %f\n", robotId, move_distance);   
+                        printf("forward %d %f\n", robotId, lineSpeed);   
                 fflush(stdout);
 
                 if (robots[robotId].workbench_id == robots[robotId].workbench_to_buy_id && robots[robotId].buy == 1) {
@@ -373,31 +369,27 @@ int main() {
 
             else if(robots[robotId].sell==1)
             {
-                double move_distance = distance / (1.0 / 50);//线速度
-                double rotate_angle = cal_angle(robots[robotId].workbench_to_sell_id, robotId) / (1.0 / 50);//加速度
+                double lineSpeed = distance / time_step;//线速度
+                double angleSpeed = cal_angle(robots[robotId].workbench_to_sell_id, robotId) / time_step;//加速度
 
-                if (move_distance > 6.0) {
-                    move_distance = 6.0;
-                }
-                if (move_distance < -2.0) {
-                    move_distance = -2.0;
-                }
-                if (rotate_angle > pi) {//M_PI不兼容，数字兼容
-                    rotate_angle = pi;
-                }
-                if (rotate_angle < -1 * pi) {
-                    rotate_angle = -1 * pi;
-                }
+                if (lineSpeed > 6.0)
+                            {lineSpeed = 6.0;}
+                if (lineSpeed < -2.0) 
+                            {lineSpeed = -2.0;}
+                if (angleSpeed > pi) 
+                            {angleSpeed = pi;}
+                if (angleSpeed < -1 * pi) 
+                            {angleSpeed = -1 * pi;}
 
-                printf("rotate %d %f\n", robotId, rotate_angle);
+                printf("rotate %d %f\n", robotId, angleSpeed);
                 fflush(stdout);
-                double random_distance = 2 + random_double(-0.8,0.4);
-                if (abs(rotate_angle) > 3.14 && my_distance(robots[robotId].pos, workbenches[robots[robotId].workbench_to_sell_id].pos)<5.5)
-                        printf("forward %d %f\n", robotId, random_distance);//改这个可以修改转圈圈的大小，可能可以出去
-                else if (my_distance(robots[robotId].pos, workbenches[robots[robotId].workbench_to_sell_id].pos) < 0.5)
+
+                if (abs(angleSpeed) > 3 && collision_risk)
+                    printf("forward %d -2\n", robotId);
+                else if (collision_risk)
                         printf("forward %d 2\n", robotId);
                 else
-                        printf("forward %d %f\n", robotId, move_distance);   
+                        printf("forward %d %f\n", robotId, lineSpeed);   
                 fflush(stdout);
 
                 if (robots[robotId].workbench_id == robots[robotId].workbench_to_sell_id && robots[robotId].sell == 1) {
@@ -412,9 +404,32 @@ int main() {
                         fflush(stdout);
                     }
             }
-        }
+}
 
-        
+
+int main() {
+    init();
+    readmap();
+    while (scanf("%d", &frameID) != EOF) 
+    {
+        read_frame_info(money);
+        printf("%d\n", frameID);
+        fflush(stdout);
+
+        for (int robotId = 0; robotId < 4; robotId++) {
+
+            if ((robots[robotId].sell == 0) && (robots[robotId].buy == 0)) 
+            {
+                    if(make_choice(robotId))
+                    {
+                        robots[robotId].buy=1;
+                        robots[robotId].sell=1;
+                    }
+            }
+
+            bool collision_risk = is_collision_risk(robotId);
+            give_command(robotId,collision_risk);
+        }
         printf("OK\n");
         fflush(stdout);
     }
