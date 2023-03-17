@@ -268,7 +268,7 @@ bool make_choice(int robotid) {
         case 4:purchase_price = 15400; product_price = 22500; break;
         case 5:purchase_price = 17200; product_price = 25000; break;
         case 6:purchase_price = 19200; product_price = 27500; break;
-        case 7:purchase_price = 76000; product_price = 105000; break;
+        case 7:purchase_price = 76000; product_price = 10500; break;
         default:purchase_price = 0; product_price = 0; break;
         }
 
@@ -301,9 +301,17 @@ bool make_choice(int robotid) {
                 continue;
             }
 
+            if(workbenches[j].material_count==2){
+                robots[robotid].workbench_to_buy_id = i;
+                robots[robotid].workbench_to_sell_id = j;
+                lock(1, tp_worktable[workbenches[robots[robotid].workbench_to_buy_id].type].produce, robotid, robots[robotid].workbench_to_buy_id);//机器人找到了生产出的产品，需要加产品锁
+                lock(0, tp_worktable[workbenches[robots[robotid].workbench_to_buy_id].type].produce, robotid, robots[robotid].workbench_to_sell_id);//机器人找到了空闲的材料格，需要给这个材料格加材料锁
+                yes_or_no = true;
+                return yes_or_no;
+            }
             need = 1;
-            double to_buy_time = my_distance(robots[robotid].pos, workbenches[i].pos) / 5.5;
-            double to_sell_time = my_distance(workbenches[i].pos, workbenches[j].pos) / 4.5;
+            double to_buy_time = my_distance(robots[robotid].pos, workbenches[i].pos) / 5;
+            double to_sell_time = my_distance(workbenches[i].pos, workbenches[j].pos) / 4;
             double total_time = to_buy_time + to_sell_time;
             product_price = product_price * cal_time_value_coef(to_sell_time, 9000, 0.8) - purchase_price;
             double profit = product_price / total_time;
@@ -343,7 +351,7 @@ bool is_collision_risk(int robot_id) {
 double isCollide(double& my_rotate, Robot robot1, Robot robot2) {
     double robots_distance = my_distance(robot1.pos, robot2.pos);//计算两个机器人距离
     double crash_time = 50 * robots_distance / (my_distance(robot1.linear_speed, Point{ 0,0 }) + my_distance(robot2.linear_speed, Point{ 0,0 }));//计算直线距离还有多少帧
-    double judge_crash_angle = pi/2;//判断相撞的夹角范围
+    double judge_crash_angle = pi/3;//判断相撞的夹角范围
     double judge_crash_angle2 = pi / 12;//判断相撞的夹角范围
     double sita = atan2(robot1.pos.y - robot2.pos.y, robot1.pos.x - robot2.pos.x) - robot2.facing_direction;//计算2为了和1相撞还要转多少角度
     //double sita = robot1.facing_direction - robot2.facing_direction;
@@ -445,9 +453,9 @@ int avoidCollide() {
                 fflush(stdout);
                 printf("rotate %d %f\n", i, rotate);//1号机器人和2号机器人同向转
                 fflush(stdout);
-                printf("forward %d 2\n", j);//减速，避免碰撞转不过来
+                printf("forward %d 4\n", j);//减速，避免碰撞转不过来
                 fflush(stdout);
-                printf("forward %d 2\n", i);//减速，避免碰撞转不过来
+                printf("forward %d 4\n", i);//减速，避免碰撞转不过来
                 fflush(stdout);
                 collide_id |= 1 << j;//记录哪些机器人会在这一帧进行计算
             }
@@ -478,7 +486,7 @@ void give_command(int robotId, bool collision_risk) {
         fflush(stdout);
 
         if (abs(angleSpeed) > 3 && collision_risk)
-            printf("forward %d 2\n", robotId);
+            printf("forward %d -0.1\n", robotId);
         else if (collision_risk)
             printf("forward %d 4\n", robotId);
         else
@@ -507,7 +515,7 @@ void give_command(int robotId, bool collision_risk) {
         if (abs(angleSpeed) > 3 && collision_risk)
             printf("forward %d -0.1\n", robotId);
         else if (collision_risk)
-            printf("forward %d 3\n", robotId);
+            printf("forward %d 4\n", robotId);
         else
             printf("forward %d %f\n", robotId, lineSpeed);
         fflush(stdout);
