@@ -57,6 +57,7 @@ struct Robot {
     int destroy;//
     int workbench_to_buy_id ;
     int workbench_to_sell_id;
+    int adjust_motion_flag;
 };
 
 //全局变量定义部分
@@ -234,7 +235,7 @@ double cal_angle(int table_id, int robot_id) {
     double dy = workbenches[table_id].pos.y - robots[robot_id].pos.y;
     double angle = atan2(dy, dx) - robots[robot_id].facing_direction;
     if (angle > pi) angle -= 2 * pi;
-    if (angle < -pi) angle += 2 * pi;
+    if (angle < -1*pi) angle += 2 * pi;
     return angle;
 }
 
@@ -314,7 +315,6 @@ bool make_choice(int robotid) {
         return yes_or_no;
 }
 
-
 bool is_collision_risk(int robot_id) {
     bool risk=false;
     double predicted_x = robots[robot_id].pos.x + robots[robot_id].linear_speed.x * time_step*10;
@@ -328,33 +328,131 @@ bool is_collision_risk(int robot_id) {
       return risk;
 }
 
+double isCollide(double& my_rotate, Robot robot1, Robot robot2) {
+    double robots_distance = my_distance(robot1.pos, robot2.pos);//计算两个机器人距离
+    double crash_time = 50 * robots_distance / (my_distance(robot1.linear_speed, Point{ 0,0 }) + my_distance(robot2.linear_speed, Point{ 0,0 }));//计算直线距离还有多少帧
+    double judge_crash_angle = pi / 4;//判断相撞的夹角范围
+    double sita = atan2(robot1.pos.y - robot2.pos.y, robot1.pos.x - robot2.pos.x) - robot2.facing_direction;//计算2为了和1相撞还要转多少角度
+    //double sita = robot1.facing_direction - robot2.facing_direction;
+    //下面是为了让sita处于[-1*pi,pi]
+    if (sita > pi)
+    {
+        sita -= 2 * pi;
+    }
+    if (sita < -1 * pi)
+    {
+        sita += 2 * pi;
+    }
+    double sita2 = atan2(robot2.pos.y - robot1.pos.y, robot2.pos.x - robot1.pos.x) - robot1.facing_direction;//计算1为了和2相撞还要转多少角度
+    //下面是为了让sita处于[-1*pi,pi]
+    if (sita2 > pi)
+    {
+        sita2 -= 2 * pi;
+    }
+    if (sita2 < -1 * pi)
+    {
+        sita2 += 2 * pi;
+    }
+    double sita3 = fabs(fabs(robot1.facing_direction - robot2.facing_direction) - pi);//两个机器人方向夹角的差值
+    //if (distance < robot1.radius + robot2.radius + 0.5 && (sita > pi / 2 && sita < pi)) {
+    if (int(crash_time) < 20 && sita3 <= judge_crash_angle)  //控制反应帧为20帧
+    {
+        if (-judge_crash_angle < sita && sita < 0 && 0 < sita2 && sita2 < judge_crash_angle)//下面分别对应6张图
+        {
+            if (-sita < sita2)
+            {
+                my_rotate = -1*pi;//顺时针转是负的
+                return true;
+            }
+            else
+            {
+                my_rotate = pi;//逆时针转是正的
+                return true;
+            }
+        }
+        else if (0 < sita && sita < judge_crash_angle && -judge_crash_angle < sita2 && sita2 < 0)
+        {
+            if (sita < -sita2)
+            {
+                my_rotate = pi;
+                return true;
+            }
+            else
+            {
+                my_rotate = -1*pi;
+                return true;
+            }
+        }
+        else if (-judge_crash_angle < sita && sita < 0 && -judge_crash_angle < sita2 && sita2 < 0)
+        {
+            my_rotate = pi;
+            return true;
+        }
+        else if (0 < sita && sita < judge_crash_angle && 0 < sita2 && sita2 < judge_crash_angle)
+        {
+            my_rotate = -1*pi;
+            return true;
+        }
+        else if (sita == 0)//如果对撞，随便左右转
+        {
+            my_rotate = pi;
+            return true;
+        }
+    }
+    return false;
+}
+// 避免机器人相互碰撞
+int avoidCollide() {
+    int collide_id = 0;
+    // 遍历每个机器人
+    for (int i = 0; i < 4; i++) {
+        // 遍历其他机器人
+        for (int j = i + 1; j < 4; j++) {
+            double rotate = 0;
+            // 如果两个机器人碰撞了，就更新它们的位置和速度
+            if (isCollide(rotate, robots[i], robots[j])) {
+                //fprintf(stderr, "    rotate %f robots_id_i %d robots_is_j %d\n", rotate,i,j);
+                //Sleep(1000);
+                printf("rotate %d %f\n", j, rotate);//2号机器人转的角度
+                fflush(stdout);
+                printf("rotate %d %f\n", i, rotate);//1号机器人和2号机器人同向转
+                fflush(stdout);
+                printf("forward %d 2\n", j);//减速，避免碰撞转不过来
+                fflush(stdout);
+                printf("forward %d 2\n", i);//减速，避免碰撞转不过来
+                fflush(stdout);
+                collide_id |= 1 << j;//记录哪些机器人会在这一帧进行计算
+            }
+        }
+    }
+    return collide_id;//返回机器人编号
+}
+
+double clamp(double value, double min_value, double max_value) {
+    return std::max(min_value, std::min(value, max_value));
+}
 
 void give_command(int robotId,bool collision_risk){
         double lineSpeed = 3;
         double angleSpeed = 1.5;
         double distance = 1.0;
         double random_distance = 2 + random_double(-0.8, 0.4);
-            if(robots[robotId].buy==1)
+
+            if(robots[robotId].buy==1 )
             {
                 double lineSpeed = distance / time_step;//线速度
                 double angleSpeed = cal_angle(robots[robotId].workbench_to_buy_id, robotId) / time_step;//加速度
 
-                if (lineSpeed > 6.0)
-                            {lineSpeed = 6.0;}
-                if (lineSpeed < -2.0) 
-                            {lineSpeed = -2.0;}
-                if (angleSpeed > pi) 
-                            {angleSpeed = pi;}
-                if (angleSpeed < -1 * pi) 
-                            {angleSpeed = -1 * pi;}
+                lineSpeed=clamp(lineSpeed,-2,6);
+                angleSpeed=clamp(angleSpeed,-1 * pi,pi);
 
                 printf("rotate %d %f\n", robotId, angleSpeed);
                 fflush(stdout);
                 
                 if (abs(angleSpeed) > 3 && collision_risk)
-                    printf("forward %d -0.5\n", robotId);
+                    printf("forward %d -0.1\n", robotId);
                 else if (collision_risk)
-                        printf("forward %d 3\n", robotId);
+                        printf("forward %d 5\n", robotId);
                 else
                         printf("forward %d %f\n", robotId, lineSpeed);   
                 fflush(stdout);
@@ -367,25 +465,19 @@ void give_command(int robotId,bool collision_risk){
                     }
             }
 
-            else if(robots[robotId].sell==1)
+            else if(robots[robotId].sell==1 )
             {
                 double lineSpeed = distance / time_step;//线速度
                 double angleSpeed = cal_angle(robots[robotId].workbench_to_sell_id, robotId) / time_step;//加速度
 
-                if (lineSpeed > 6.0)
-                            {lineSpeed = 6.0;}
-                if (lineSpeed < -2.0) 
-                            {lineSpeed = -2.0;}
-                if (angleSpeed > pi) 
-                            {angleSpeed = pi;}
-                if (angleSpeed < -1 * pi) 
-                            {angleSpeed = -1 * pi;}
+                lineSpeed=clamp(lineSpeed,-2,6);
+                angleSpeed=clamp(angleSpeed,-1 * pi,pi);
 
                 printf("rotate %d %f\n", robotId, angleSpeed);
                 fflush(stdout);
 
                 if (abs(angleSpeed) > 3 && collision_risk)
-                    printf("forward %d -0.5\n", robotId);
+                    printf("forward %d -0.1\n", robotId);
                 else if (collision_risk)
                         printf("forward %d 3\n", robotId);
                 else
@@ -404,7 +496,9 @@ void give_command(int robotId,bool collision_risk){
                         fflush(stdout);
                     }
             }
+
 }
+
 
 
 int main() {
@@ -416,8 +510,10 @@ int main() {
         printf("%d\n", frameID);
         fflush(stdout);
 
+        int collide_id = avoidCollide();//判断哪些机器人要避免碰撞
         for (int robotId = 0; robotId < 4; robotId++) {
-
+            if (collide_id & (1 << robotId))//如果这个机器人已经进行过碰撞避免，就不在进行后续计算
+                continue;
             if ((robots[robotId].sell == 0) && (robots[robotId].buy == 0)) 
             {
                     if(make_choice(robotId))
