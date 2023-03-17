@@ -268,7 +268,7 @@ bool make_choice(int robotid) {
         case 4:purchase_price = 15400; product_price = 22500; break;
         case 5:purchase_price = 17200; product_price = 25000; break;
         case 6:purchase_price = 19200; product_price = 27500; break;
-        case 7:purchase_price = 76000; product_price = 10500; break;
+        case 7:purchase_price = 76000; product_price = 1050000; break;
         default:purchase_price = 0; product_price = 0; break;
         }
 
@@ -337,8 +337,8 @@ bool make_choice(int robotid) {
 
 bool is_collision_risk(int robot_id) {
     bool risk = false;
-    double predicted_x = robots[robot_id].pos.x + robots[robot_id].linear_speed.x * time_step * 10;
-    double predicted_y = robots[robot_id].pos.y + robots[robot_id].linear_speed.y * time_step * 10;
+    double predicted_x = robots[robot_id].pos.x + robots[robot_id].linear_speed.x * time_step * 20;
+    double predicted_y = robots[robot_id].pos.y + robots[robot_id].linear_speed.y * time_step * 20;
     risk = (predicted_x < 0.6 || predicted_x > map_width - 0.6 || predicted_y < 0.6 || predicted_y > map_height - 0.6);
 
     if (risk)
@@ -485,10 +485,14 @@ void give_command(int robotId, bool collision_risk) {
         printf("rotate %d %f\n", robotId, angleSpeed);
         fflush(stdout);
 
-        if (abs(angleSpeed) > 3 && collision_risk)
-            printf("forward %d -0.1\n", robotId);
-        else if (collision_risk)
-            printf("forward %d 4\n", robotId);
+        //if (abs(angleSpeed) > 3 && collision_risk)
+          ///  printf("forward %d -0.1\n", robotId);
+        //else 
+        if(abs(cal_angle(robots[robotId].workbench_to_buy_id, robotId)) > 1.6 && my_distance(robots[robotId].pos,workbenches[robots[robotId].workbench_to_buy_id].pos) < 5)
+            printf("forward %d -2\n", robotId);
+         else if (collision_risk)
+           printf("forward %d 2\n", robotId);
+
         else
             printf("forward %d %f\n", robotId, lineSpeed);
         fflush(stdout);
@@ -512,10 +516,13 @@ void give_command(int robotId, bool collision_risk) {
         printf("rotate %d %f\n", robotId, angleSpeed);
         fflush(stdout);
 
-        if (abs(angleSpeed) > 3 && collision_risk)
-            printf("forward %d -0.1\n", robotId);
-        else if (collision_risk)
-            printf("forward %d 4\n", robotId);
+        //if (abs(angleSpeed) > 3 && collision_risk)
+          //  printf("forward %d -0.1\n", robotId);
+        //else
+        if(abs(cal_angle(robots[robotId].workbench_to_sell_id, robotId)) > 1.6 && my_distance(robots[robotId].pos,workbenches[robots[robotId].workbench_to_sell_id].pos) < 5)
+            printf("forward %d -2\n", robotId);
+          else  if (collision_risk)
+            printf("forward %d 2\n", robotId);
         else
             printf("forward %d %f\n", robotId, lineSpeed);
         fflush(stdout);
