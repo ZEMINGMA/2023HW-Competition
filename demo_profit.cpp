@@ -143,6 +143,11 @@ void lock(int material_or_product, int material_or_product_id, int robotid, int 
     }
     else//如果是产品
     {
+        if (material_or_product_id==1||material_or_product_id==3||material_or_product_id==2)
+        {
+          return;
+        }
+        
         workbenches[workbenchid].product_lock = robotid + 1;//产品锁用机器人编号
     }
 }
@@ -251,29 +256,47 @@ double cal_time_value_coef(double holding_time, double maxX, double minRate)//�
 }
 
 bool make_choice(int robotid) {
-    double max_profit = -1;
+    double max_profit = 999999;
     bool yes_or_no = false;
     robots[robotid].workbench_to_buy_id = -1;
     robots[robotid].workbench_to_sell_id = -1;
-    for (int i = 0;i < workbench_cnt;++i)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+
+    int start = (robotid % 2 == 0) ? 0 : workbench_cnt - 1;
+    int end = (robotid % 2 == 0) ? workbench_cnt : -1;
+    int step = (robotid % 2 == 0) ? 1 : -1;
+
+     for (int i = start; i != end; i += step)//遍历所有工作台(只要曾经有过成品就会出现在full里)
     {
         // 计算利润
         int product_type = workbenches[i].type;
         int product_price;
         int purchase_price;
         switch (product_type) {
-        case 1:purchase_price = 3000; product_price = 6000; break;
-        case 2:purchase_price = 4400; product_price = 7600; break;
-        case 3:purchase_price = 5800; product_price = 9200; break;
-        case 4:purchase_price = 15400; product_price = 22500; break;
-        case 5:purchase_price = 17200; product_price = 25000; break;
-        case 6:purchase_price = 19200; product_price = 27500; break;
+        case 1:purchase_price = 5000; product_price = 7000; break;
+        case 2:purchase_price = 5000; product_price = 7000; break;
+        case 3:purchase_price = 5000; product_price = 7000; break;
+        case 4:purchase_price = 15000; product_price = 20000; break;
+        case 5:purchase_price = 15000; product_price = 20000; break;
+        case 6:purchase_price = 15000; product_price = 20000; break;
         case 7:purchase_price = 76000; product_price = 1050000; break;
         default:purchase_price = 0; product_price = 0; break;
         }
 
+        if(robotid==0)
+            if(workbenches[i].type!=4){continue;}
+        if(robotid==1)
+            if(workbenches[i].type!=5){continue;}
+        if(robotid==2)
+            if(workbenches[i].type!=6){continue;}
+        if(robotid==3)
+            if(workbenches[i].type==1||workbenches[i].type==2||workbenches[i].type==3){continue;}
+
         if (workbenches[i].product_bit == 0)//如果没有生产出产品
         {
+            continue;
+        }
+
+        if(workbenches[i].type==7){
             continue;
         }
 
@@ -283,7 +306,7 @@ bool make_choice(int robotid) {
         }
 
         int need = 0;//这里把need赋值为0
-        for (int j = 0;j < workbench_cnt;++j)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+         for (int j = start; j != end; j += step)//遍历所有工作台(只要曾经有过成品就会出现在full里)
         {
             //如果这种类型的工作台不需要这种类型的材料
             if ((tp_worktable[workbenches[j].type].raw_material & (1 << (tp_worktable[workbenches[i].type].produce))) == 0)
@@ -301,7 +324,7 @@ bool make_choice(int robotid) {
                 continue;
             }
 
-            if(workbenches[j].material_count==2){
+            if (workbenches[j].material_count == 2) {
                 robots[robotid].workbench_to_buy_id = i;
                 robots[robotid].workbench_to_sell_id = j;
                 lock(1, tp_worktable[workbenches[robots[robotid].workbench_to_buy_id].type].produce, robotid, robots[robotid].workbench_to_buy_id);//机器人找到了生产出的产品，需要加产品锁
@@ -310,15 +333,15 @@ bool make_choice(int robotid) {
                 return yes_or_no;
             }
             need = 1;
-            double to_buy_time = my_distance(robots[robotid].pos, workbenches[i].pos) / 5;
-            double to_sell_time = my_distance(workbenches[i].pos, workbenches[j].pos) / 4;
+            double to_buy_time = my_distance(robots[robotid].pos, workbenches[i].pos) ;
+            double to_sell_time = my_distance(workbenches[i].pos, workbenches[j].pos) ;
             double total_time = to_buy_time + to_sell_time;
-            product_price = product_price * cal_time_value_coef(to_sell_time, 9000, 0.8) - purchase_price;
-            double profit = product_price / total_time;
+           // product_price = product_price * cal_time_value_coef(to_sell_time, 9000, 0.8) - purchase_price;
+          //  double profit = product_price / total_time;
             // 更新最大利润和最佳工作台
-            if (profit > max_profit)
+            if (total_time < max_profit)
             {
-                max_profit = profit;
+                max_profit = total_time;
                 robots[robotid].workbench_to_buy_id = i;
                 robots[robotid].workbench_to_sell_id = j;
             }
@@ -326,221 +349,248 @@ bool make_choice(int robotid) {
         if (need == 0) continue;//继续寻找下一个工作台，而不是break不找所有工作台
     }
 
-    if (max_profit != -1)
+    if (max_profit != 999999)
     {
         lock(1, tp_worktable[workbenches[robots[robotid].workbench_to_buy_id].type].produce, robotid, robots[robotid].workbench_to_buy_id);//机器人找到了生产出的产品，需要加产品锁
         lock(0, tp_worktable[workbenches[robots[robotid].workbench_to_buy_id].type].produce, robotid, robots[robotid].workbench_to_sell_id);//机器人找到了空闲的材料格，需要给这个材料格加材料锁
         yes_or_no = true;
+        return yes_or_no;
     }
+
+         for (int i = start; i != end; i += step)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+    {
+        // 计算利润
+        int product_type = workbenches[i].type;
+        int product_price;
+        int purchase_price;
+        switch (product_type) {
+        case 1:purchase_price = 5000; product_price = 7000; break;
+        case 2:purchase_price = 5000; product_price = 7000; break;
+        case 3:purchase_price = 5000; product_price = 7000; break;
+        case 4:purchase_price = 15000; product_price = 20000; break;
+        case 5:purchase_price = 15000; product_price = 20000; break;
+        case 6:purchase_price = 15000; product_price = 20000; break;
+        case 7:purchase_price = 76000; product_price = 1050000; break;
+        default:purchase_price = 0; product_price = 0; break;
+        }
+
+        if(robotid==0)
+            if(workbenches[i].type==3){continue;}
+        if(robotid==1)
+            if(workbenches[i].type==2){continue;}
+        if(robotid==2)
+            if(workbenches[i].type==1){continue;}
+        if(robotid==3)
+            if(workbenches[i].type==start%4){continue;}
+        if (workbenches[i].product_bit == 0)//如果没有生产出产品
+        {
+            continue;
+        }
+
+        if(workbenches[i].type==7){
+            continue;
+        }
+
+        if (check_lock(1, tp_worktable[workbenches[i].type].produce, robotid, i))//如果被锁了continue
+        {
+            continue;
+        }
+
+        int need = 0;//这里把need赋值为0
+         for (int j = start; j != end; j += step)//遍历所有工作台(只要曾经有过成品就会出现在full里)
+        {
+            //如果这种类型的工作台不需要这种类型的材料
+            if ((tp_worktable[workbenches[j].type].raw_material & (1 << (tp_worktable[workbenches[i].type].produce))) == 0)
+            {
+                continue;
+            }
+            //如果工作台已经有了这种原材料
+            if ((workbenches[j].material_bits & (1 << (tp_worktable[workbenches[i].type].produce))) != 0)
+            {
+                continue;
+            }
+            //如果工作台已经的这种原材料已经被死锁了
+            if ((workbenches[j].material_lock & (1 << (tp_worktable[workbenches[i].type].produce))) != 0)
+            {
+                continue;
+            }
+
+            if (workbenches[j].material_count == 2) {
+                robots[robotid].workbench_to_buy_id = i;
+                robots[robotid].workbench_to_sell_id = j;
+                lock(1, tp_worktable[workbenches[robots[robotid].workbench_to_buy_id].type].produce, robotid, robots[robotid].workbench_to_buy_id);//机器人找到了生产出的产品，需要加产品锁
+                lock(0, tp_worktable[workbenches[robots[robotid].workbench_to_buy_id].type].produce, robotid, robots[robotid].workbench_to_sell_id);//机器人找到了空闲的材料格，需要给这个材料格加材料锁
+                yes_or_no = true;
+                return yes_or_no;
+            }
+            need = 1;
+            double to_buy_time = my_distance(robots[robotid].pos, workbenches[i].pos) ;
+            double to_sell_time = my_distance(workbenches[i].pos, workbenches[j].pos) ;
+            double total_time = to_buy_time + to_sell_time;
+           // product_price = product_price * cal_time_value_coef(to_sell_time, 9000, 0.8) - purchase_price;
+          //  double profit = product_price / total_time;
+            // 更新最大利润和最佳工作台
+            if (total_time < max_profit)
+            {
+                max_profit = total_time;
+                robots[robotid].workbench_to_buy_id = i;
+                robots[robotid].workbench_to_sell_id = j;
+            }
+        }
+        if (need == 0) continue;//继续寻找下一个工作台，而不是break不找所有工作台
+    }
+
+    if (max_profit != 999999)
+    {
+        lock(1, tp_worktable[workbenches[robots[robotid].workbench_to_buy_id].type].produce, robotid, robots[robotid].workbench_to_buy_id);//机器人找到了生产出的产品，需要加产品锁
+        lock(0, tp_worktable[workbenches[robots[robotid].workbench_to_buy_id].type].produce, robotid, robots[robotid].workbench_to_sell_id);//机器人找到了空闲的材料格，需要给这个材料格加材料锁
+        yes_or_no = true;
+        return yes_or_no;
+    }
+
     return yes_or_no;
-}
-
-bool is_collision_risk(int robot_id) {
-    bool risk = false;
-    double predicted_x = robots[robot_id].pos.x + robots[robot_id].linear_speed.x * time_step * 20;
-    double predicted_y = robots[robot_id].pos.y + robots[robot_id].linear_speed.y * time_step * 20;
-    risk = (predicted_x < 0.6 || predicted_x > map_width - 0.6 || predicted_y < 0.6 || predicted_y > map_height - 0.6);
-
-    if (risk)
-    {
-        fprintf(stderr, "risk!!!!\n");
-    }
-    return risk;
-}
-
-double isCollide(double& my_rotate, Robot robot1, Robot robot2) {
-    double robots_distance = my_distance(robot1.pos, robot2.pos);//计算两个机器人距离
-    double crash_time = 50 * robots_distance / (my_distance(robot1.linear_speed, Point{ 0,0 }) + my_distance(robot2.linear_speed, Point{ 0,0 }));//计算直线距离还有多少帧
-    double judge_crash_angle = pi/3;//判断相撞的夹角范围
-    double judge_crash_angle2 = pi / 12;//判断相撞的夹角范围
-    double sita = atan2(robot1.pos.y - robot2.pos.y, robot1.pos.x - robot2.pos.x) - robot2.facing_direction;//计算2为了和1相撞还要转多少角度
-    //double sita = robot1.facing_direction - robot2.facing_direction;
-    //下面是为了让sita处于[-1*pi,pi]
-    if (sita > pi)
-    {
-        sita -= 2 * pi;
-    }
-    if (sita < -1 * pi)
-    {
-        sita += 2 * pi;
-    }
-    double sita2 = atan2(robot2.pos.y - robot1.pos.y, robot2.pos.x - robot1.pos.x) - robot1.facing_direction;//计算1为了和2相撞还要转多少角度
-    //下面是为了让sita处于[-1*pi,pi]
-    if (sita2 > pi)
-    {
-        sita2 -= 2 * pi;
-    }
-    if (sita2 < -1 * pi)
-    {
-        sita2 += 2 * pi;
-    }
-    double sita3 = fabs(fabs(robot1.facing_direction - robot2.facing_direction) - pi);//两个机器人方向夹角的差值
-    //if (distance < robot1.radius + robot2.radius + 0.5 && (sita > pi / 2 && sita < pi)) {
-    if (int(crash_time) < 20 && sita3 <= judge_crash_angle)  //控制反应帧为20帧
-    {
-        if (-judge_crash_angle < sita && sita < 0 && 0 < sita2 && sita2 < judge_crash_angle)//下面分别对应6张图
-        {
-            if (-sita < sita2)
-            {
-                my_rotate = -1 * pi;//顺时针转是负的
-                return true;
-            }
-            else
-            {
-                my_rotate = pi;//逆时针转是正的
-                return true;
-            }
-        }
-        else if (0 < sita && sita < judge_crash_angle && -judge_crash_angle < sita2 && sita2 < 0)
-        {
-            if (sita < -sita2)
-            {
-                my_rotate = pi;
-                return true;
-            }
-            else
-            {
-                my_rotate = -1 * pi;
-                return true;
-            }
-        }
-        else if (-judge_crash_angle < sita && sita < 0 && -judge_crash_angle < sita2 && sita2 < 0)
-        {
-            my_rotate = pi;
-            return true;
-        }
-        else if (0 < sita && sita < judge_crash_angle && 0 < sita2 && sita2 < judge_crash_angle)
-        {
-            my_rotate = -1 * pi;
-            return true;
-        }
-        if (-judge_crash_angle2 < sita && sita < 0 && 0 < sita2 )//下面分别对应6张图
-        {
-            my_rotate = -1 * pi;//顺时针转是负的
-            return true;
-        }
-        else if (0 < sita && sita < judge_crash_angle2 && sita2 < 0)
-        {
-            my_rotate = pi;
-            return true;
-        }
-        else if (-judge_crash_angle2 < sita && sita < 0 && sita2 < 0)
-        {
-            my_rotate = pi;
-            return true;
-        }
-        else if (0 < sita && sita < judge_crash_angle2 && sita2 < judge_crash_angle2)
-        {
-            my_rotate = -1 * pi;
-            return true;
-        }
-    }
-    return false;
-}
-// 避免机器人相互碰撞
-int avoidCollide() {
-    int collide_id = 0;
-    // 遍历每个机器人
-    for (int i = 0; i < 4; i++) {
-        // 遍历其他机器人
-        for (int j = i + 1; j < 4; j++) {
-            double rotate = 0;
-            // 如果两个机器人碰撞了，就更新它们的位置和速度
-            if (isCollide(rotate, robots[i], robots[j])) {
-                //fprintf(stderr, "    rotate %f robots_id_i %d robots_is_j %d\n", rotate,i,j);
-                //Sleep(1000);
-                printf("rotate %d %f\n", j, rotate);//2号机器人转的角度
-                fflush(stdout);
-                printf("rotate %d %f\n", i, rotate);//1号机器人和2号机器人同向转
-                fflush(stdout);
-                printf("forward %d 4\n", j);//减速，避免碰撞转不过来
-                fflush(stdout);
-                printf("forward %d 4\n", i);//减速，避免碰撞转不过来
-                fflush(stdout);
-                collide_id |= 1 << j;//记录哪些机器人会在这一帧进行计算
-            }
-        }
-    }
-    return collide_id;//返回机器人编号
 }
 
 double clamp(double value, double min_value, double max_value) {
     return std::max(min_value, std::min(value, max_value));
 }
 
-void give_command(int robotId, bool collision_risk) {
-    double lineSpeed = 3;
-    double angleSpeed = 1.5;
-    double distance = 1.0;
-    double random_distance = 2 + random_double(-0.8, 0.4);
 
-    if (robots[robotId].buy == 1)
-    {
-        double lineSpeed = distance / time_step;//线速度
-        double angleSpeed = cal_angle(robots[robotId].workbench_to_buy_id, robotId) / time_step;//加速度
 
-        lineSpeed = clamp(lineSpeed, -2, 6);
-        angleSpeed = clamp(angleSpeed, -1 * pi, pi);
+const double max_linear_speed = 6.0;
+const double max_angular_speed = pi;
 
-        printf("rotate %d %f\n", robotId, angleSpeed);
-        fflush(stdout);
 
-        //if (abs(angleSpeed) > 3 && collision_risk)
-          ///  printf("forward %d -0.1\n", robotId);
-        //else 
-        if(abs(cal_angle(robots[robotId].workbench_to_buy_id, robotId)) > 1.6 && my_distance(robots[robotId].pos,workbenches[robots[robotId].workbench_to_buy_id].pos) < 5)
-            printf("forward %d -2\n", robotId);
-         else if (collision_risk)
-           printf("forward %d 2\n", robotId);
 
-        else
-            printf("forward %d %f\n", robotId, lineSpeed);
-        fflush(stdout);
-
-        if (robots[robotId].workbench_id == robots[robotId].workbench_to_buy_id && robots[robotId].buy == 1) {
-            printf("buy %d\n", robotId);
-            robots[robotId].buy = 0;
-            unlock(1, tp_worktable[workbenches[robots[robotId].workbench_to_buy_id].type].produce, robotId, robots[robotId].workbench_to_buy_id);//解产品锁
-            fflush(stdout);
-        }
-    }
-
-    else if (robots[robotId].sell == 1)
-    {
-        double lineSpeed = distance / time_step;//线速度
-        double angleSpeed = cal_angle(robots[robotId].workbench_to_sell_id, robotId) / time_step;//加速度
-
-        lineSpeed = clamp(lineSpeed, -2, 6);
-        angleSpeed = clamp(angleSpeed, -1 * pi, pi);
-
-        printf("rotate %d %f\n", robotId, angleSpeed);
-        fflush(stdout);
-
-        //if (abs(angleSpeed) > 3 && collision_risk)
-          //  printf("forward %d -0.1\n", robotId);
-        //else
-        if(abs(cal_angle(robots[robotId].workbench_to_sell_id, robotId)) > 1.6 && my_distance(robots[robotId].pos,workbenches[robots[robotId].workbench_to_sell_id].pos) < 5)
-            printf("forward %d -2\n", robotId);
-          else  if (collision_risk)
-            printf("forward %d 2\n", robotId);
-        else
-            printf("forward %d %f\n", robotId, lineSpeed);
-        fflush(stdout);
-
-        if (robots[robotId].workbench_id == robots[robotId].workbench_to_sell_id && robots[robotId].sell == 1) {
-            printf("sell %d\n", robotId);
-            robots[robotId].sell = 0;
-            workbenches[robots[robotId].workbench_to_sell_id].material_count++;  //原材料增加
-
-            //std::thread([robotId]() {
-              //  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-            unlock(0, robots[robotId].carrying_type, robotId, robots[robotId].workbench_to_sell_id); // 解材料锁
-            //}).detach();
-            fflush(stdout);
-        }
-    }
-
+double angle_robot(Point a, Point b) {
+    return atan2(b.y - a.y, b.x - a.x);
 }
+// 计算两点之间的引力
+Point attractive_force(Point pos1, Point pos2, double coefficient) {
+    Point force = {pos2.x - pos1.x, pos2.y - pos1.y};
+    force.x *= coefficient;
+    force.y *= coefficient;
+    return force;
+}
+
+Point artificial_potential_field(int robotId) {
+    // 设置参数
+    double repulsive_coefficient = 30;  // 斥力系数
+    double repulsive_distance = 4* 0.53;  // 斥力作用距离
+    double attractive_coefficient = 100;  // 引力系数
+    double robot_radius = 0.53;  // 机器人半径
+    double exponential_factor = 30;  // 墙壁斥力增长的指数因子
+
+    // 初始化合成势场
+    Point synthetic_force = {0, 0};
+
+    // 计算机器人与墙壁之间的斥力
+    double wall_force_x = repulsive_coefficient * (1 / pow(robots[robotId].pos.x - robot_radius, exponential_factor) - 1 / pow(map_width - robots[robotId].pos.x - robot_radius, exponential_factor));
+    double wall_force_y = repulsive_coefficient * (1 / pow(robots[robotId].pos.y - robot_radius, exponential_factor) - 1 / pow(map_height - robots[robotId].pos.y - robot_radius, exponential_factor));
+    synthetic_force.x += wall_force_x;
+    synthetic_force.y += wall_force_y;
+
+// 计算机器人之间的斥力
+for (int i = 0; i < 4; i++) {
+    if (i != robotId) {
+        double distance = my_distance(robots[robotId].pos, robots[i].pos);
+        if (distance < repulsive_distance + 2 * robot_radius) {  // 判断机器人之间的距离是否在斥力作用范围内
+            double repulsive_force = repulsive_coefficient * (1 / (distance - 2 * robot_radius) - 1 / repulsive_distance);
+            double angle = angle_robot(robots[i].pos, robots[robotId].pos);  // 修改为从机器人i指向机器人robotId的角度
+
+            // 计算斥力作用在机器人上的分量
+            double repulsive_force_x = repulsive_force * cos(angle);
+            double repulsive_force_y = repulsive_force * sin(angle);
+
+            // 累加斥力
+            synthetic_force.x += repulsive_force_x;
+            synthetic_force.y += repulsive_force_y;
+        }
+    }
+}
+
+
+    // 计算机器人与工作台之间的引力
+    int target_workbench_id = robots[robotId].buy ? robots[robotId].workbench_to_buy_id : robots[robotId].workbench_to_sell_id;
+    Point workbench_pos = workbenches[target_workbench_id].pos;
+    Point attraction_force = attractive_force(robots[robotId].pos, workbench_pos, attractive_coefficient);
+    synthetic_force.x += attraction_force.x;
+    synthetic_force.y += attraction_force.y;
+
+    return synthetic_force;
+}
+
+// 计算两点之间的角度差
+double angle_difference(double current_angle, double target_angle) {
+    double diff = target_angle - current_angle;
+    if (diff > pi) {
+        diff -= 2 * pi;
+    } else if (diff < -pi) {
+        diff += 2 * pi;
+    }
+    return diff;
+}
+
+void give_command(int robotId) {
+
+    // 获取人工势场法结果
+    Point apf_force = artificial_potential_field(robotId);
+    double modified_angle = angle_robot(robots[robotId].pos, {robots[robotId].pos.x + apf_force.x, robots[robotId].pos.y + apf_force.y});
+
+    // 计算角速度
+    double angle_difference_to_target = angle_difference(robots[robotId].facing_direction, modified_angle);
+    double angleSpeed = angle_difference_to_target / time_step;
+    angleSpeed = clamp(angleSpeed, -max_angular_speed, max_angular_speed);
+
+    // 根据购买和出售情况决定目标位置
+    Point target_pos;
+    if (robots[robotId].buy == 1) {
+        target_pos = workbenches[robots[robotId].workbench_to_buy_id].pos;
+    } else if (robots[robotId].sell == 1) {
+        target_pos = workbenches[robots[robotId].workbench_to_sell_id].pos;
+    }
+
+    // 计算线速度
+    double distance = my_distance(robots[robotId].pos, target_pos);
+    double linearSpeed = distance / time_step;
+    linearSpeed = clamp(linearSpeed, 0.0, max_linear_speed);
+
+    printf("rotate %d %f\n", robotId, angleSpeed);
+    fflush(stdout);
+
+
+    printf("forward %d %f\n", robotId, linearSpeed);
+    fflush(stdout);
+
+    if (robots[robotId].workbench_id == robots[robotId].workbench_to_buy_id && robots[robotId].buy == 1) {
+        printf("buy %d\n", robotId);
+        robots[robotId].buy = 0;
+        unlock(1, tp_worktable[workbenches[robots[robotId].workbench_to_buy_id].type].produce, robotId, robots[robotId].workbench_to_buy_id); // 解产品锁
+        fflush(stdout);
+    } else if (robots[robotId].workbench_id == robots[robotId].workbench_to_sell_id && robots[robotId].sell == 1) {
+        printf("sell %d\n", robotId);
+        robots[robotId].sell = 0;
+        workbenches[robots[robotId].workbench_to_sell_id].material_count++; // 原材料增加
+        unlock(0, robots[robotId].carrying_type, robotId, robots[robotId].workbench_to_sell_id); // 解材料锁
+
+        if (workbenches[robots[robotId].workbench_to_sell_id].type == 7 && workbenches[robots[robotId].workbench_to_sell_id].product_bit == 1) {
+            robots[robotId].workbench_to_buy_id = robots[robotId].workbench_to_sell_id;
+            for (int j = 0; j < workbench_cnt; j++) {
+                if (workbenches[j].type == 8) {
+                    robots[robotId].workbench_to_sell_id = j;
+                    break;
+                }
+            }
+                robots[robotId].buy = 1;
+                robots[robotId].sell = 1;
+                lock(1, tp_worktable[workbenches[robots[robotId].workbench_to_buy_id].type].produce, robotId, robots[robotId].workbench_to_buy_id);//机器人找到了生产出的产品，需要加产品锁
+                lock(0, tp_worktable[workbenches[robots[robotId].workbench_to_buy_id].type].produce, robotId, robots[robotId].workbench_to_sell_id);//机器人找到了空闲的材料格，需要给这个材料格加材料锁
+            }
+            fflush(stdout);
+        }
+}
+
+
 
 
 
@@ -553,10 +603,7 @@ int main() {
         printf("%d\n", frameID);
         fflush(stdout);
 
-        int collide_id = avoidCollide();//判断哪些机器人要避免碰撞
-        for (int robotId = 0; robotId < 4; robotId++) {
-            if (collide_id & (1 << robotId))//如果这个机器人已经进行过碰撞避免，就不在进行后续计算
-                continue;
+        for (int robotId = 0; robotId < 4; robotId++) {         
             if ((robots[robotId].sell == 0) && (robots[robotId].buy == 0))
             {
                 if (make_choice(robotId))
@@ -565,9 +612,7 @@ int main() {
                     robots[robotId].sell = 1;
                 }
             }
-
-            bool collision_risk = is_collision_risk(robotId);
-            give_command(robotId, collision_risk);
+            give_command(robotId);
         }
         printf("OK\n");
         fflush(stdout);
