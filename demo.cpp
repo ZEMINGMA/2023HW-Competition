@@ -75,8 +75,8 @@ type_worktable_struct tp_worktable[10];
 Workbench workbenches[55];//为了通过工作台ID访问工作台
 Robot robots[4];//为了通过机器人ID访问机器人
 //map<int,int> match[10];
-int have_9;  //是否有工作台9
-int have_7;
+int have_9=0;  //是否有工作台9
+int have_7=0;
 int collide_id;
 int workbench_9_id;
 vector<Point> workbench_7;  //记录工作台7的坐标
@@ -162,11 +162,11 @@ void lock(int material_or_product, int material_or_product_id, int robotid, int 
         }
     else//如果是产品
     {
-        if (material_or_product_id == 1 || material_or_product_id == 2 || material_or_product_id == 3)
+        if(have_9 == 1&& have_7 !=1)    
+            if (material_or_product_id == 1 || material_or_product_id == 2 || material_or_product_id == 3)
         {
             return;
         }
-
         workbenches[workbenchid].product_lock = robotid + 1;//产品锁用机器人编号
     }
 }
@@ -473,8 +473,8 @@ bool make_choice(int robotid) {
 
 bool is_collision_risk(int robot_id) {
     bool risk = false;
-    double predicted_x = robots[robot_id].pos.x + robots[robot_id].linear_speed.x * time_step * 15;
-    double predicted_y = robots[robot_id].pos.y + robots[robot_id].linear_speed.y * time_step * 15;
+    double predicted_x = robots[robot_id].pos.x + robots[robot_id].linear_speed.x * time_step * 8;
+    double predicted_y = robots[robot_id].pos.y + robots[robot_id].linear_speed.y * time_step * 8;
     risk = (predicted_x < 0.6 || predicted_x > map_width - 0.6 || predicted_y < 0.6 || predicted_y > map_height - 0.6);
 
     if (risk)
@@ -568,7 +568,7 @@ bool is_possible_collision(Robot r1, Robot r2)
 double isCollide(double& my_rotate, Robot robot1, Robot robot2) {
     double robots_distance = my_distance(robot1.pos, robot2.pos);//计算两个机器人距离
     double crash_time = 50 * robots_distance / (my_distance(robot1.linear_speed, Point{ 0,0 }) + my_distance(robot2.linear_speed, Point{ 0,0 }));//计算直线距离还有多少帧
-    double judge_crash_angle = pi / 3;//判断相撞的夹角范围
+    double judge_crash_angle = pi / 2.8;//判断相撞的夹角范围
     double judge_crash_angle2 = pi / 12;//判断相撞的夹角范围
     double sita = atan2(robot1.pos.y - robot2.pos.y, robot1.pos.x - robot2.pos.x) - robot2.facing_direction;//计算2为了和1相撞还要转多少角度
     //double sita = robot1.facing_direction - robot2.facing_direction;
@@ -671,7 +671,7 @@ int avoidCollide() {
                 fflush(stdout);
                 printf("rotate %d %f\n", i, rotate);//1号机器人和2号机器人同向转
                 fflush(stdout);
-                printf("forward %d 5\n", j);//减速，避免碰撞转不过来
+                printf("forward %d 4\n", j);//减速，避免碰撞转不过来
                 fflush(stdout);
                 printf("forward %d 2\n", i);//减速，避免碰撞转不过来
                 fflush(stdout);
@@ -683,9 +683,9 @@ int avoidCollide() {
                 fflush(stdout);
                 printf("rotate %d pi\n", i);//1号机器人和2号机器人同向转
                 fflush(stdout);
-                printf("forward %d -2\n", j);//减速，避免碰撞转不过来
+                printf("forward %d -1\n", j);//减速，避免碰撞转不过来
                 fflush(stdout);
-                printf("forward %d -2\n", i);//减速，避免碰撞转不过来
+                printf("forward %d -0.5\n", i);//减速，避免碰撞转不过来
                 fflush(stdout);
                 collide_id |= 1 << j;//记录哪些机器人会在这一帧进行计算
                 collide_id |= 1 << i;//记录哪些机器人会在这一帧进行计算
@@ -717,11 +717,14 @@ Point attractive_force(Point pos1, Point pos2, double coefficient) {
 
 Point artificial_potential_field(int robotId) {
     // 设置参数
-    double repulsive_coefficient = 200;  // 斥力系数
-    double repulsive_distance = 1.8 * 0.53;  // 斥力作用距离
-    double attractive_coefficient = 500;  // 引力系数
+    double repulsive_coefficient = 0;  // 斥力系数
+   if(!have_9||have_7){
+    repulsive_coefficient=90;
+   }
+    double repulsive_distance = 1.5 * 0.53;  // 斥力作用距离
+    double attractive_coefficient = 30;  // 引力系数
     double robot_radius = 0.53;  // 机器人半径
-    double exponential_factor = 0;  // 墙壁斥力增长的指数因子
+    double exponential_factor = 0.0005;  // 墙壁斥力增长的指数因子
 
     // 初始化合成势场
     Point synthetic_force = { 0, 0 };
@@ -827,7 +830,7 @@ void give_command(int robotId, bool collision_risk) {
         lineSpeed = clamp(lineSpeed, -2, 6);
         angleSpeed = clamp(angleSpeed, -1 * pi, pi);
 
-        if (abs(cal_angle(robots[robotId].workbench_to_buy_id, robotId)) > 1.535 && my_distance(robots[robotId].pos, workbenches[robots[robotId].workbench_to_buy_id].pos) < 2.2)
+        if (abs(cal_angle(robots[robotId].workbench_to_buy_id, robotId)) > 1.525 && my_distance(robots[robotId].pos, workbenches[robots[robotId].workbench_to_buy_id].pos) < 2.45)
             printf("rotate %d %f\n", robotId, -angleSpeed);
         else
             printf("rotate %d %f\n", robotId, angleSpeed);
@@ -835,13 +838,18 @@ void give_command(int robotId, bool collision_risk) {
         //if (abs(angleSpeed) > 3 && collision_risk)
         ///  printf("forward %d -0.1\n", robotId);
         //else
-        if (abs(cal_angle(robots[robotId].workbench_to_buy_id, robotId)) > 1.5 && my_distance(robots[robotId].pos, workbenches[robots[robotId].workbench_to_buy_id].pos) < 1)
-            printf("forward %d -1.95\n", robotId);
+        if (abs(cal_angle(robots[robotId].workbench_to_buy_id, robotId)) > 1.525 && my_distance(robots[robotId].pos, workbenches[robots[robotId].workbench_to_buy_id].pos) < 2.45)
+            printf("forward %d -1.87\n", robotId);
         else if (collision_risk)
-            printf("forward %d 0.94\n", robotId);
+            printf("forward %d 1.85\n", robotId);
 
-        else
-            printf("forward %d %f\n", robotId, random_double(5.65, 6));
+        else{
+                if(have_9 &&!have_7)
+                printf("forward %d %f\n", robotId, random_double(5.99, 6));
+                else
+                printf("forward %d %f\n", robotId, random_double(5.9, 6));
+        }
+
         fflush(stdout);
 
         if (robots[robotId].workbench_id == robots[robotId].workbench_to_buy_id && robots[robotId].buy == 1) {
@@ -860,7 +868,7 @@ void give_command(int robotId, bool collision_risk) {
         lineSpeed = clamp(lineSpeed, -2, 6);
         angleSpeed = clamp(angleSpeed, -1 * pi, pi);
 
-        if (abs(cal_angle(robots[robotId].workbench_to_sell_id, robotId)) > 1.535 && my_distance(robots[robotId].pos, workbenches[robots[robotId].workbench_to_sell_id].pos) < 2.2)
+        if (abs(cal_angle(robots[robotId].workbench_to_sell_id, robotId)) > 1.525 && my_distance(robots[robotId].pos, workbenches[robots[robotId].workbench_to_sell_id].pos) < 2.45)
             printf("rotate %d %f\n", robotId, -angleSpeed);
         else
             printf("rotate %d %f\n", robotId, angleSpeed);
@@ -868,12 +876,17 @@ void give_command(int robotId, bool collision_risk) {
         //if (abs(angleSpeed) > 3 && collision_risk)
         //  printf("forward %d -0.1\n", robotId);
         //else
-        if (abs(cal_angle(robots[robotId].workbench_to_sell_id, robotId)) > 1.535 && my_distance(robots[robotId].pos, workbenches[robots[robotId].workbench_to_sell_id].pos) < 5)
-            printf("forward %d -1.95\n", robotId);
+        if (abs(cal_angle(robots[robotId].workbench_to_sell_id, robotId)) > 1.525 && my_distance(robots[robotId].pos, workbenches[robots[robotId].workbench_to_sell_id].pos) < 2.45)
+            printf("forward %d -1.87\n", robotId);
         else  if (collision_risk && workbenches[robots[robotId].workbench_to_sell_id].type != 9)
-            printf("forward %d 0.94\n", robotId);
-        else
-            printf("forward %d %f\n", robotId, random_double(5.65, 6));
+            printf("forward %d 1.85\n", robotId);
+        else{
+                if(have_9 &&!have_7)
+                printf("forward %d %f\n", robotId, random_double(5.99, 6));
+                else
+                printf("forward %d %f\n", robotId, random_double(5.9, 6));
+        }
+
         fflush(stdout);
 
         if (robots[robotId].workbench_id == robots[robotId].workbench_to_sell_id && robots[robotId].sell == 1) {
@@ -1162,6 +1175,7 @@ int main() {
         fflush(stdout);
 
         collide_id = avoidCollide();//判断哪些机器人要避免碰撞
+
         map<int, int> make_choice_second_id;
         for (int i = 0;i < workbench_cnt;i++) {
             if (workbenches[i].type == 7  && frameID < 8399) {
@@ -1193,6 +1207,7 @@ int main() {
                 make_choice_sec(it->first);
             }
         }
+
         for (int robotId = 0; robotId < 4; robotId++) {
             if (collide_id & (1 << robotId))//如果这个机器人已经进行过碰撞避免，就不在进行后续计算
                 continue;
